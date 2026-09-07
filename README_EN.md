@@ -30,17 +30,25 @@ This project delivers **process-level environment variable injection**, **sub-se
 
 ---
 
-## 📊 Solution Comparison
+## 🚀 Quick Start
 
-| Dimension | System-Wide TUN / TAP Mode | Manual Batch Script (.bat) | This Launcher |
-| :--- | :---: | :---: | :---: |
-| **Proxy Scope** | ❌ Hijacks all system traffic | ⚠️ Child process only, error-prone | 🟢 **Scoped strictly to ChatGPT process** |
-| **System Pollution** | ❌ Modifies global routing / adapters | ❌ Prone to leftover dirty variables | 🟢 **100% Zero-pollution (WAL rollback)** |
-| **Concurrency Protection** | ➖ None | ❌ Concurrent runs corrupt state | 🟢 **User SID-based Global Mutex** |
-| **External Modification** | ➖ None | ❌ Overwrites external configs | 🟢 **Compare-and-Restore preservation** |
-| **Egress IP & Timezone** | ❌ None | ❌ None | 🟢 **HTTPS probe & 1-click alignment** |
-| **Timezone POSIX Engine** | ❌ Requires changing system clock | ⚠️ Naive offset causes V8 crash | 🟢 **Strict POSIX & Non-DST safeguards** |
-| **Runtime Dependencies** | Requires TAP driver installation | None | 🟢 **Pure C# — zero dependencies** |
+### Method 1: Pre-built Executable (Get Started in 30 Seconds)
+1. Go to the [Releases page](../../releases) and download the latest `ChatGPTAntiBanLauncher.exe` (a single portable binary of ~50-90 KB, zero installation required);
+2. Run the application;
+3. Select Local Proxy mode and specify your local port (e.g. `7897` for Clash, `7890` for v2rayN);
+4. Click **【🔍 Detect Current Node】**, then click **【⚡ Match This Timezone】**;
+5. Click **【🚀 Save & Launch】** to start the client seamlessly;
+6. *(Optional)* Click **【📌 Create Desktop Shortcut】** for 1-click access from your desktop.
+
+### Method 2: Headless Command Line Mode
+The launcher supports command-line invocation for scripts, startup routines, and automations:
+```cmd
+REM Launch client immediately using saved configuration
+ChatGPTAntiBanLauncher.exe --launch
+
+REM View command line help
+ChatGPTAntiBanLauncher.exe --help
+```
 
 ---
 
@@ -81,6 +89,20 @@ This project delivers **process-level environment variable injection**, **sub-se
 
 ---
 
+## 📊 Solution Comparison
+
+| Dimension | System-Wide TUN / TAP Mode | Manual Batch Script (.bat) | This Launcher |
+| :--- | :---: | :---: | :---: |
+| **Proxy Scope** | ❌ Hijacks all system traffic | ⚠️ Child process only, error-prone | 🟢 **Scoped strictly to ChatGPT process** |
+| **System Pollution** | ❌ Modifies global routing / adapters | ❌ Prone to leftover dirty variables | 🟢 **100% Zero-pollution (WAL rollback)** |
+| **Concurrency Protection** | ➖ None | ❌ Concurrent runs corrupt state | 🟢 **User SID-based Global Mutex** |
+| **External Modification** | ➖ None | ❌ Overwrites external configs | 🟢 **Compare-and-Restore preservation** |
+| **Egress IP & Timezone** | ❌ None | ❌ None | 🟢 **HTTPS probe & 1-click alignment** |
+| **Timezone POSIX Engine** | ❌ Requires changing system clock | ⚠️ Naive offset causes V8 crash | 🟢 **Strict POSIX & Non-DST safeguards** |
+| **Runtime Dependencies** | Requires TAP driver installation | None | 🟢 **Pure C# — zero dependencies** |
+
+---
+
 ## 🏗️ Architecture & Workflow
 
 ```mermaid
@@ -117,28 +139,6 @@ sequenceDiagram
 - **Client Editions Supported**:
   - Microsoft Store Edition (`OpenAI.Codex`)
   - Standalone Desktop Installer Edition
-
----
-
-## 🚀 Quick Start
-
-### Method 1: Pre-built Executable
-1. Go to the [Releases page](../../releases) and download the latest `ChatGPTAntiBanLauncher.exe`;
-2. Run the application;
-3. Select Local Proxy mode and specify your local port (e.g. `7897` for Clash, `7890` for v2ray);
-4. Click **【🔍 Detect Current Node】**, then click **【⚡ Match This Timezone】**;
-5. Click **【🚀 Save & Launch】**;
-6. *(Optional)* Click **【📌 Create Desktop Shortcut】** for quick access.
-
-### Method 2: Headless Command Line Mode
-The launcher supports command-line invocation for scripts and automation:
-```cmd
-REM Launch client immediately using saved configuration
-ChatGPTAntiBanLauncher.exe --launch
-
-REM View command line help
-ChatGPTAntiBanLauncher.exe --help
-```
 
 ---
 
