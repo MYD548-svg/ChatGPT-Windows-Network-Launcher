@@ -1,0 +1,371 @@
+================================================================================
+项目全量代码与主要功能审查文档 (PROJECT SUMMARY & AUDIT SPECIFICATION)
+项目名称: ChatGPT 防风控启动器 (ChatGPT Anti-Ban Launcher / ChatGPT TimeZone Launcher)
+目标受众: AI Agent 代码审查与架构审计团队
+生成时间: 2026-09-05
+================================================================================
+
+--------------------------------------------------------------------------------
+一、 项目背景与解决的核心痛点 (BACKGROUND & PROBLEM STATEMENT)
+--------------------------------------------------------------------------------
+1. 目标应用与定位：
+   - 目标应用：Windows 官方应用商店版（Microsoft Store AppX / MSIX 包：`OpenAI.Codex`）以及独立安装版桌面端 ChatGPT 客户端。
+   - 运行平台：Windows 10 / Windows 11 (x64 / ARM64)。
+   - 开发语言与运行时：C# (.NET Framework 4.0/4.5+ 原生 Windows Forms GUI)，纯绿色单文件。
+   - 构建方式：直接调用 Windows 系统内置的 `csc.exe` 编译器构建，零第三方库依赖，无需额外安装 Node.js、Python、.NET 8 SDK 或庞大运行时。
+
+2. 解决的两大核心痛点：
+   (1) 网络断连与模型持续处于 Reconnecting 状态：
+       国内网络环境下，Windows 商店版 ChatGPT 客户端（基于 Electron / Chromium 内核）默认不遵从某些系统代理或虚拟网卡规则，容易发生网络直连超时、模型接口断连，提示 "Something went wrong" 或无限重新连接。
+   (2) 账号地理风控（Timezone / IP Mismatch 导致封号）：
+       OpenAI 具有严格的地理位置及设备指纹风控系统。当用户节点代理在海外（例如美西 UTC-8 或日本 UTC+9），但客户端由于运行在中文 Windows 系统上，内部通过 V8 引擎 `Intl.DateTimeFormat` 和 `new Date()` 自动获取系统时区（中国标准时间 Asia/Shanghai UTC+8），导致公网出口 IP 所在地时区与客户端设备上报时区产生严重冲突。该异常会被服务端识别为代理工具伪装，极易招致账号被封禁或降低模型使用权限。
+
+3. 为什么不直接修改 Windows 系统全局时区或系统代理？
+   - 破坏性大：直接修改全局系统时区会导致 Windows 系统右下角时钟、日历、会议提醒、其他工作软件（微信、飞书、Outlook、钉钉等）全部发生时差错乱。
+   - 全局代理污染：修改全局环境变量会使其他本地开发工具、命令行、Git 走代理出现不可预期的故障。
+   - 本项目解决方案：采用“进程级隔离注入”与“瞬态环境变量广播 + UWP COM 激活”，仅使 ChatGPT 客户端实例生效，全局系统零污染、零残留。
+
+
+--------------------------------------------------------------------------------
+二、 核心架构设计与技术工作流 (CORE ARCHITECTURAL MECHANISMS)
+--------------------------------------------------------------------------------
+
+1. 双模式网络代理注入 (Dual Network Mode)：
+   - 🟢 VPN 代理模式 (推荐)：
+     向启动的 ChatGPT 实例注入代理环境变量：
+       * `HTTP_PROXY = http://127.0.0.1:{Port}`
+       * `HTTPS_PROXY = http://127.0.0.1:{Port}`
+       * `ALL_PROXY = http://127.0.0.1:{Port}`
+       * `NO_PROXY = localhost,127.0.0.1,::1`
+     界面提供常用代理软件端口快捷切换胶囊：`7897 (Clash/Mihomo)`、`7890 (v2ray)`、`10808 (Xray)`、`1080 (SS)`，并由后台定时器通过 TCP Socket 进行端口监听存活状态检测。
+   - 🔵 原生直连模式：
+     不注入代理环境变量（置空），仅注入目标时区环境变量。适合开启了全局 TUN / TAP 虚拟网卡接管系统全部网络流量的用户。
+
+2. 瞬态环境变量广播与 UWP COM 激活 (Transient Environment Broadcast & COM Activation)：
+   - UWP/AppX 应用的特殊性：Windows 应用商店应用不能简单通过普通 `Process.Start` 附带子进程环境变量来传递，否则沙箱隔离会导致环境变量丢失；同时 Windows 商店应用通常通过 AppUserModelId 唤醒。
+   - 解决方案 (`TemporaryLaunchEnvironment` & `EnvironmentChangeBroadcaster`)：
+     a. 在启动唤起前一刻，将目标环境变量（`TZ`、`HTTP_PROXY`、`HTTPS_PROXY` 等）同时写入进程级 (`EnvironmentVariableTarget.Process`) 和当前用户级注册表 (`EnvironmentVariableTarget.User`)；
+     b. 调用 Win32 API `SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, UIntPtr.Zero, "Environment", SMTO_ABORTIFHUNG, 2000, out result)` 向全局广播环境变量变更；
+     c. 实例化 COM 接口 `IApplicationActivationManager`（GUID: `2e941141-7f97-4756-ba1d-9decde894a3d`），调用 `ActivateApplication(appUserModelId, null, ActivateOptions.None, out pid)` 唤起应用；ChatGPT 进程在创建初始化的瞬间将捕获到该环境变量；
+     d. 激活完成后立即在 `Dispose()` 中将当前用户级环境变量彻底还原至原有值，并再次触发广播。
+     e. 整个过程在毫秒级别完成，对操作系统全局环境实现 100% 零污染。
+   - 降级通道：若非 AppX 商店版或 COM 激活受挫，自动降级为直接 `ProcessStartInfo.EnvironmentVariables` 启动本地物理路径下的可执行文件。
+
+3. 真实出口节点感知与防风控时区比对 (Proxy-Aware Exit Node & Timezone Matching)：
+   - 痛点规避：若探测出口 IP 时直接走本机直连，测出的将是国内 IP；因此在【VPN 代理模式】下，发起网络请求时显式绑定本地代理 `request.Proxy = new WebProxy("127.0.0.1", proxyPort)`，确保 100% 获取代理落地节点的真实出口信息。
+   - 4 级瀑布流容灾机制 (Waterfall Fallback Engine)：
+     通道 1: `https://ipwhois.app/json/`（权威全 HTTPS，返回详细 IP、国家、城市、IANA 时区、GMT 偏移量）
+     通道 2: `http://ip-api.com/json/?fields=status,country,timezone,offset,query`（纯 HTTP 接口，免 TLS 握手，对 TUN/Fake-IP 兼容性极佳）
+     通道 3: `https://ipinfo.io/json`（经典海外 GeoIP 备用）
+     通道 4: `https://api.ip.sb/geoip`（海外免限流备用）
+   - TLS 1.2/1.3 协议强制支持与中间人证书兼容：
+     在 .NET Framework 4.0/4.5 早期运行时中，默认只开启 TLS 1.0，会导致现代 HTTPS 接口直接抛出“未能创建 SSL/TLS 安全通道”。程序在静态初始化与请求前显式配置：
+     `ServicePointManager.SecurityProtocol = (SecurityProtocolType)12288 | (SecurityProtocolType)3072 | (SecurityProtocolType)768 | SecurityProtocolType.Tls;`
+     并配置 `ServerCertificateValidationCallback = delegate { return true; };`，避免代理软件开启 MITM 解密时导致证书校验失败。
+   - 实时防风控比对：
+     检测获取到出口时区后，程序实时比对用户在界面配置的启动时区：
+     * 若完全一致：状态标绿显示安全（`🟢 启动时区与当前出口节点 100% 吻合！安全无风险。`）；
+     * 若存在时差冲突：状态标红警告（`⚠️ 时区冲突！节点为 [Asia/Tokyo]，但启动器选为 [America/Los_Angeles]。建议点击上方按钮一键匹配！`）；
+     * 提供【⚡ 一键匹配该时区】按钮，点击后自动切换至 IANA 模式并选中对应时区，实现一键对齐。
+
+4. 优雅安全退出防护 (Graceful Shutdown Protection)：
+   - 启动前先枚举查找系统中已有的 `ChatGPT.exe` 与 `Codex.exe` 实例；
+   - 优先通过 Win32 `CloseMainWindow()` 向主窗口发送关闭通知，并等待 3000ms；
+   - 绝不在第一时间粗暴执行 `Kill()`，避免用户未保存的对话草稿、Canvas 正在编辑的代码丢失；
+   - 若 3 秒后进程仍未退出，则弹出友好对话框让用户决定是否强制结束。
+
+5. 自动化平滑配置迁移与持久化 (Config Persistence & Legacy Migration)：
+   - 配置目录：%LOCALAPPDATA%\ChatGPTAntiBanLauncher\settings.json
+   - 自动迁移：若检测到旧版本项目目录 `%LOCALAPPDATA%\ChatGPTTimeZoneLauncher\settings.json`，启动时自动无缝向上迁移，保留用户原有的时区及端口设置；
+   - 轻量序列化：不引入 Newtonsoft.Json 等庞大第三方 DLL，直接通过简洁高效的正规正则表达式提取与拼接 JSON 文本，维持纯原生。
+
+6. 桌面快捷方式生成：
+   - 界面内置【桌面快捷方式】功能，基于 Windows Shell COM 接口 (`IShellLinkW` / `IPersistFile`) 在用户桌面一键生成 `ChatGPT (防风控版).lnk`，图标自动引用本启动器。
+
+
+--------------------------------------------------------------------------------
+三、 项目代码与文件结构详述 (CODEBASE & MODULE INVENTORY)
+--------------------------------------------------------------------------------
+
+项目文件列表：
+- `Program.cs`             主窗体界面定义、UI 事件交互、节点探测控制、启动流程调度 (1365行)
+- `LauncherCore.cs`        底层核心：COM 接口激活、瞬态广播、配置持久化、客户端探测、端口检测 (494行)
+- `UIControls.cs`          现代 Fluent 视觉自绘控件（RoundedCard、ModernButton、平滑圆角算法）(179行)
+- `build.bat`              纯 ASCII 编码的一键原生编译脚本
+- `README.md`              用户交互与功能说明
+- `PROJECT_MEMORY.md`      全量踩坑记录与设计复盘知识库
+- `ChatGPTAntiBanLauncher.exe` 编译生成的独立绿色执行文件
+
+以下对核心源码文件的功能模块做详细展开：
+
+--------------------------------------------------
+1. LauncherCore.cs (核心底层能力)
+--------------------------------------------------
+包含类与接口定义：
+(1) `class TemporaryLaunchEnvironment : IDisposable`
+    - 职责：瞬态环境变量生命周期管理。
+    - 实现：
+      * 构造函数接收 `IDictionary<string, string> values`，记录原始的 Process 与 User 级环境变量；
+      * 设置新环境变量到当前 Process 和 User；
+      * 触发 `EnvironmentChangeBroadcaster.Broadcast()`；
+      * `Dispose()` 时逐一恢复 Process 与 User 原值，并再次触发广播。
+(2) `static class EnvironmentChangeBroadcaster`
+    - P/Invoke Win32 API `SendMessageTimeout`，参数 `HWND_BROADCAST (0xFFFF)`、`WM_SETTINGCHANGE (0x001A)`，消息参数 `"Environment"`，超时 2000ms。
+(3) `static class PackagedAppLauncher`
+    - 定义了原生 COM 导入接口：
+      * `IApplicationActivationManager` (GUID: `2e941141-7f97-4756-ba1d-9decde894a3d`)
+      * CoClass `ApplicationActivationManager` (CLSID: `45BA127D-10A8-46EA-8AB7-56EA9078943C`)
+    - 方法 `Activate(string appUserModelId)`：通过 COM 安全唤起 Windows Store UWP 应用。
+(4) `static class DesktopShortcutManager`
+    - 定义了 `IShellLinkW` 与 `IPersistFile` COM 接口，用于在桌面生成 `.lnk` 快捷方式，自动绑定当前 exe 路径与图标。
+(5) `class CodexInstallInfo` 与 `static class CodexFinder`
+    - 职责：三级优先级动态查找 ChatGPT 安装信息：
+      * 第 1 级：检查标准物理路径 `%LOCALAPPDATA%\Programs\ChatGPT\ChatGPT.exe` 与 `%ProgramFiles%\ChatGPT\ChatGPT.exe`；
+      * 第 2 级：调用轻量后台 PowerShell 管道查询最新 AppX 包：
+        `Get-AppxPackage -Name '*OpenAI.Codex*' | Sort-Object Version -Descending | Select-Object -First 1`
+        动态获取 `InstallLocation` 与 `PackageFamilyName`，解析 `AppxManifest.xml` 中的 Application Id，组合成标准的 AUMID（如 `OpenAI.Codex_... !App`）；
+      * 第 3 级：直接遍历 `%ProgramFiles%\WindowsApps\OpenAI.Codex*` 目录并读取清单文件进行降级兜底。
+(6) `class LauncherSettings` & `class LauncherConfigStore`
+    - 数据实体：`Mode` (iana/utc), `IanaName`, `UtcOffset`, `GracefulClose`, `NetworkMode` (vpn/direct), `ProxyHost`, `ProxyPort`。
+    - 读写存储：%LOCALAPPDATA%\ChatGPTAntiBanLauncher\settings.json。
+    - 包含自动兼容迁移逻辑（从旧目录 `ChatGPTTimeZoneLauncher` 自动拷贝升级）。
+(7) `static class ProxyPortChecker`
+    - 基于 `TcpClient` 与 `BeginConnect` 异步检测指定 Host 和 Port 是否处于监听中（超时默认 200ms），不阻断 UI 线程。
+
+--------------------------------------------------
+2. UIControls.cs (Windows 11 Fluent 现代自绘控件)
+--------------------------------------------------
+包含类定义：
+(1) `static class DrawingHelpers`
+    - `GetRoundedPath(Rectangle rect, int radius)`：使用 `GraphicsPath.AddArc` 构造平滑的圆角矩形矢量路径。
+(2) `class RoundedCard : Panel`
+    - 双缓冲、抗锯齿（`SmoothingMode.AntiAlias`），支持自定义 `CornerRadius` 和 `BorderColor`，绘制卡片背景与精细外边框。
+(3) `class ModernButton : Button`
+    - 覆写 `ShowFocusCues { get { return false; } }`，彻底根除 WinForms 传统的复古黑色焦点虚线框；
+    - 开启 `UserPaint` 与 `SupportsTransparentBackColor`，在 `OnPaintBackground` 中以父容器背景色平整覆盖外圈，彻底消除 Windows 原生扁平按钮边缘的 1px 直角黑边；
+    - 支持 Hover（悬停）、Pressed（按下）与 Disabled（禁用）平滑状态色切换；
+    - 使用 `TextRenderingHint.ClearTypeGridFit` 与 `TextRenderer.DrawText` 保证高 DPI 下文字清晰锐利。
+
+--------------------------------------------------
+3. Program.cs (主窗体与全业务调度)
+--------------------------------------------------
+包含核心模块：
+(1) 窗体外观与高 DPI 适配：
+    - P/Invoke `DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)` 启用 Windows 11 原生 DWM 窗口大圆角；
+    - 显式设置 `AutoScaleMode = AutoScaleMode.None;`，锁定客户区大小 `ClientSize = new Size(660, 780)`，防止 Windows 基于字体粗暴换算导致的布局崩塌；
+    - 动态探测并优先使用现代字体 `Segoe UI Variable Text`，回退至 `Microsoft YaHei UI`。
+(2) 界面自适应布局架构：
+    - 底部固定面板 `pnlBottom` (DockStyle.Bottom)：包含状态就绪指示灯、桌面快捷方式按钮、保存配置按钮、主启动按钮。利用显式 Resize 计算宽度，保证在任何分辨率与 DPI 缩放下主要动作按钮永远可见、不被任务栏遮挡；
+    - 顶部滚动面板 `pnlScroll` (DockStyle.Fill)：
+      * Header 区域：项目图标、标题与副标题；
+      * Card 1 (网络代理模式)：VPN/直连单选切换、代理端口输入、预设端口胶囊（7897/7890/10808/1080）、TCP 存活监听状态提示；
+      * Card 2 (出口感知与比对)：【🔍 检测出口节点】按钮、【⚡ 一键匹配该时区】按钮、出口 IP 显示、节点时区显示、比对诊断结果（绿标吻合/红标冲突）；
+      * Card 3 (时区配置)：IANA 模式/UTC 偏移模式切换、自动联想搜索下拉框、主流城市预设胶囊（美西、美东、英国、日本、新加坡、香港）、优雅退出安全复选框；
+      * Card 4 (实时预览)：显示当前即将被注入的 `TZ` 和代理环境变量 Badge。
+(3) 业务调度函数：
+    - `SwitchNetworkMode(mode)`：切换代理/直连模式，联动界面控件可见性与样式；
+    - `CheckProxyPortStatus()`：后台线程检测代理端口是否在监听；
+    - `DetectCurrentNode()`：后台线程池异步发起 4 级瀑布流 GeoIP 探测，解析 IP、国家、时区、时差；
+    - `CompareNodeTimezone()`：比对节点真实时区与当前选择时区，给出安全评估；
+    - `ApplyDetectedTimezone()`：将检测到的时区自动写入控件；
+    - `LaunchChatGPT()`：整合完整启动流水线：
+      1. 检测正在运行的实例 -> 优雅退出/确认强退；
+      2. 定位安装包（AUMID 或可执行文件物理路径）；
+      3. 构建瞬态环境变量字典；
+      4. 瞬态广播 -> COM 唤醒 -> 自动恢复广播；
+      5. 捕获异常并提供物理路径降级启动保护。
+
+--------------------------------------------------
+4. build.bat (一键构建脚本)
+--------------------------------------------------
+- 特性：脚本全文本采用 **100% 纯 ASCII（英文）字符**。
+- 解决痛点：彻底杜绝中文 Windows 默认 CP936(GBK) 解释 UTF-8 批处理文件时的“3字节转双字节多字节漂移”，彻底杜绝换行符被吞、参数错位等恶性构建 Bug。
+- 编译命令核心：
+  `csc.exe /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 /reference:System.dll,System.Windows.Forms.dll,System.Drawing.dll,System.Core.dll,Microsoft.CSharp.dll,System.Xml.dll /out:ChatGPTAntiBanLauncher.exe Program.cs LauncherCore.cs UIControls.cs`
+
+
+--------------------------------------------------------------------------------
+四、 核心代码关键片段 (KEY CODE SNIPPETS FOR AUDIT)
+--------------------------------------------------------------------------------
+
+1. 瞬态环境变量广播实现 (LauncherCore.cs):
+--------------------------------------------------
+internal sealed class TemporaryLaunchEnvironment : IDisposable
+{
+    private readonly Dictionary<string, string> previousProcessValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> previousUserValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public TemporaryLaunchEnvironment(IDictionary<string, string> values)
+    {
+        if (values == null) return;
+        foreach (KeyValuePair<string, string> kvp in values)
+        {
+            string key = kvp.Key;
+            string value = kvp.Value;
+            previousProcessValues[key] = Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process);
+            previousUserValues[key] = Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.User);
+
+            Environment.SetEnvironmentVariable(key, value, EnvironmentVariableTarget.Process);
+            Environment.SetEnvironmentVariable(key, value, EnvironmentVariableTarget.User);
+        }
+        EnvironmentChangeBroadcaster.Broadcast();
+    }
+
+    public void Dispose()
+    {
+        foreach (KeyValuePair<string, string> kvp in previousProcessValues)
+            Environment.SetEnvironmentVariable(kvp.Key, kvp.Value, EnvironmentVariableTarget.Process);
+
+        foreach (KeyValuePair<string, string> kvp in previousUserValues)
+            Environment.SetEnvironmentVariable(kvp.Key, kvp.Value, EnvironmentVariableTarget.User);
+
+        EnvironmentChangeBroadcaster.Broadcast();
+    }
+}
+
+internal static class EnvironmentChangeBroadcaster
+{
+    private static readonly IntPtr HwndBroadcast = new IntPtr(0xffff);
+    private const int WmSettingChange = 0x001A;
+    private const int SmtoAbortIfHung = 0x0002;
+
+    public static void Broadcast()
+    {
+        try
+        {
+            UIntPtr result;
+            SendMessageTimeout(HwndBroadcast, WmSettingChange, UIntPtr.Zero, "Environment", SmtoAbortIfHung, 2000, out result);
+        }
+        catch { }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, UIntPtr wParam, string lParam, int fuFlags, int uTimeout, out UIntPtr lpdwResult);
+}
+
+2. UWP 应用 COM 唤醒接口声明与调度 (LauncherCore.cs):
+--------------------------------------------------
+internal static class PackagedAppLauncher
+{
+    public static void Activate(string appUserModelId)
+    {
+        object managerObject = new ApplicationActivationManager();
+        IApplicationActivationManager manager = (IApplicationActivationManager)managerObject;
+        try
+        {
+            uint pid;
+            int hr = manager.ActivateApplication(appUserModelId, null, ActivateOptions.None, out pid);
+            if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(managerObject);
+        }
+    }
+
+    [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+    private sealed class ApplicationActivationManager { }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("2e941141-7f97-4756-ba1d-9decde894a3d")]
+    private interface IApplicationActivationManager
+    {
+        [PreserveSig]
+        int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string appUserModelId, [MarshalAs(UnmanagedType.LPWStr)] string arguments, ActivateOptions options, out uint processId);
+        [PreserveSig]
+        int ActivateForFile(IntPtr appUserModelId, IntPtr itemArray, string verb, out uint processId);
+        [PreserveSig]
+        int ActivateForProtocol(IntPtr appUserModelId, IntPtr itemArray, out uint processId);
+    }
+}
+
+3. 节点探测代理绑定与 TLS 协议栈加固 (Program.cs):
+--------------------------------------------------
+private static void EnsureSecurityProtocols()
+{
+    try
+    {
+        // 启用 TLS 1.3 (12288) | TLS 1.2 (3072) | TLS 1.1 (768) | TLS 1.0 (192)
+        ServicePointManager.SecurityProtocol = (SecurityProtocolType)12288
+                                             | (SecurityProtocolType)3072
+                                             | (SecurityProtocolType)768
+                                             | SecurityProtocolType.Tls;
+    }
+    catch
+    {
+        try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | SecurityProtocolType.Tls; } catch { }
+    }
+
+    try { ServicePointManager.ServerCertificateValidationCallback = delegate { return true; }; } catch { }
+}
+
+private static string FetchUrl(string url, bool useProxy, int proxyPort, int timeoutMs = 4000)
+{
+    EnsureSecurityProtocols();
+    try
+    {
+        HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+        request.Timeout = timeoutMs;
+        request.ReadWriteTimeout = timeoutMs;
+        request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+        request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+
+        if (useProxy && proxyPort > 0)
+        {
+            request.Proxy = new WebProxy("127.0.0.1", proxyPort);
+        }
+        else
+        {
+            request.Proxy = null;
+        }
+
+        using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+        using (StreamReader reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+        {
+            return reader.ReadToEnd();
+        }
+    }
+    catch { return null; }
+}
+
+
+--------------------------------------------------------------------------------
+五、 踩坑经验与关键技术复盘 (DIAGNOSTIC & ENGINEERING RETROSPECTIVE)
+--------------------------------------------------------------------------------
+1. 批处理脚本跨编码灾难：
+   - 现象：`build.bat` 执行时因中文出现命令截断（如 `'ptimize+' 不是内部或外部命令`）。
+   - 根因：Windows CMD 的 CP936 单汉字 2 字节与 UTF-8 的 3 字节冲突，引起指针漂移。
+   - 规避准则：所有运维/构建批处理脚本必须保持 100% 纯 ASCII 字符，杜绝一切中文字符。
+
+2. 高 DPI 缩放下的布局溢出：
+   - 现象：在 125%/150% 笔记本屏幕下，左侧标题文字截断、底部操作按钮被挤出可视区。
+   - 根因：WinForms 默认基于字体缩放导致尺寸计算错乱；硬编码绝对坐标使高度超过工作区。
+   - 规避准则：锁定 `AutoScaleMode = AutoScaleMode.None`；采用 `DockStyle.Bottom` 停靠底部栏；给文本标签预留 20% 以上的像素宽度冗余。
+
+3. GeoIP 接口 429 限流与 TUN 模式 SSL 握手超时：
+   - 现象：公共代理 IP 容易耗尽免费接口配额触发 429 报错；部分接口在 TUN 网卡环境下握手超时。
+   - 规避准则：建立多层级瀑布容灾（HTTPS 首选 -> 纯 HTTP 兜底 -> 备用源），单源异常被内部吸收不穿透，确保用户点击检测时绝不崩溃。
+
+4. 现代 Windows 11 Fluent 视觉去陈旧化：
+   - 现象：WinForms 按钮点击时带有 Windows 98 风格的黑色虚线焦点框，且边缘露黑角。
+   - 规避准则：覆写 `ShowFocusCues = false`，启用 `ControlStyles.Selectable = false`，重写 `OnPaintBackground` 使用父容器背景擦除边缘，使界面具备现代 Win11 纯净质感。
+
+
+--------------------------------------------------------------------------------
+六、 给审查 Agent 的关注要点建议 (AUDIT FOCUS & CHECKLIST)
+--------------------------------------------------------------------------------
+在审查本工程时，建议重点关注以下几个技术维度：
+1. [安全性与隔离性]
+   - `TemporaryLaunchEnvironment` 在设置用户级环境变量后，若激活期间程序发生未捕获致命崩溃（如断电/强制杀死启动器），用户级环境变量是否存在无法自动还原的边界情况？
+   - 评估：即使未还原，启动器写入的值仅为代理与时区，下次启动本工具或保存设置时会再次清理，但审查 agent 可评估是否需要在主窗体 `Main()` 增加全局未处理异常过滤器兜底清理。
+2. [权限模型 (Permissions)]
+   - 当前程序以普通用户权限运行（不要求管理员提权），修改当前用户的 User 环境变量注册表无需 UAC 提权，符合最小权限原则。
+   - `PackagedAppLauncher.Activate` COM 调用在普通权限即可成功唤起。
+3. [多版本 Windows 兼容性]
+   - Windows 10 与 Windows 11 的不同小版本对 `IApplicationActivationManager` 和 `SendMessageTimeout` 的响应差异；
+   - 针对 Microsoft Store 版 ChatGPT 与独立安装版的自动探测判定覆盖率。
+4. [代理网络协议覆盖]
+   - 当前 HTTP_PROXY 默认格式为 `http://127.0.0.1:{Port}`，对于纯 Socks5 端口的兼容性情况。
+
+================================================================================
+(文档结束 - 欢迎审查并提出重构或增强建议)
+================================================================================

@@ -1,0 +1,52 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, Test and Publish Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Run Automated Test Suite (212 Assertions)
+        shell: cmd
+        run: |
+          call run_tests.bat
+
+      - name: Compile Standalone Executable (Zero-Dependency)
+        shell: cmd
+        run: |
+          call compile.bat
+
+      - name: Verify Executable and Calculate SHA-256
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "ChatGPTAntiBanLauncher.exe")) {
+            Write-Error "ChatGPTAntiBanLauncher.exe was not generated!"
+            exit 1
+          }
+          $hash = (Get-FileHash -Path "ChatGPTAntiBanLauncher.exe" -Algorithm SHA256).Hash
+          "$hash  ChatGPTAntiBanLauncher.exe" | Out-File -FilePath "SHA256SUMS.txt" -Encoding ascii
+          Write-Host "========================================================"
+          Write-Host "Build Output : ChatGPTAntiBanLauncher.exe"
+          Write-Host "SHA-256 Hash : $hash"
+          Write-Host "========================================================"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ChatGPTAntiBanLauncher.exe
+            SHA256SUMS.txt
+          generate_release_notes: true
+          name: "ChatGPT Windows Network Launcher ${{ github.ref_name }}"

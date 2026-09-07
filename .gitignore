@@ -1,0 +1,45 @@
+# ====================================================================
+# Git Ignore for ChatGPT Windows Network Launcher (.NET / Windows C#)
+# ====================================================================
+
+# Build outputs & executables
+*.exe
+*.dll
+*.pdb
+*.obj
+*.ilk
+*.exp
+*.lib
+
+# Temporary files & backup files
+*.bak
+*.tmp
+*.swp
+*~
+*.log
+
+# Test sandbox temporary directories & generated files
+build_test/*.exe
+build_test/*.pdb
+build_test/temp_*
+build_test/test_out_*
+build_test/*.wal
+
+# User settings and runtime WAL logs (in case copied locally)
+settings.json
+*.wal
+
+# Visual Studio & IDE cache files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+.vscode/
+
+# OS specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

@@ -1,0 +1,410 @@
+﻿{
+    "Timestamp":  "2026-09-06T03:17:45.1948325Z",
+    "LocalSystemTz":  "China Standard Time",
+    "ProxyPort":  7897,
+    "ProxyAlive":  true,
+    "ProxyExitNode":  {
+                          "ip":  "144.48.80.227",
+                          "city":  "Tokyo",
+                          "region":  "Tokyo",
+                          "country":  "JP",
+                          "loc":  "35.6895,139.6917",
+                          "org":  "AS48266 Catixs Ltd",
+                          "postal":  "101-8656",
+                          "timezone":  "Asia/Tokyo",
+                          "readme":  "https://ipinfo.io/missingauth"
+                      },
+    "LauncherExitCode":  0,
+    "LauncherOutput":  "[INFO] ChatGPT Anti-Ban Launcher - Headless Launch Mode\r\n[INFO] Target client: 应用商店版 (OpenAI.Codex 26.901.6511.0) (C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.901.6511.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe)\r\n[INFO] Injecting parameters: NetworkMode=vpn, Port=7897, TzMode=iana, IANA=Asia/Tokyo, UTC=UTC+9\r\n[RESULT] Succeeded=True\r\n[RESULT] TargetPid=21608\r\n[RESULT] WarningLevel=None\r\n[RESULT] HasConflicts=False\r\n[RESULT] ConflictCount=0\r\n[RESULT] ProcessStatus=应用商店版已拉起 (PID: 21608)\r\n[RESULT] EnvironmentAdoptionStatus=已执行瞬态注册表写入并已成功恢复 (注意：Store版由Shell托管，环境实际生效性未经验证)\r\n[RESULT] Summary=应用商店版启动请求已发送，环境已恢复\r\n",
+    "ActiveProcessCount":  10,
+    "Processes":  [
+                      {
+                          "PID":  1272,
+                          "Name":  "ChatGPT",
+                          "TZ":  "Asia/Tokyo",
+                          "HTTP_PROXY":  "http://127.0.0.1:7897",
+                          "HTTPS_PROXY":  "http://127.0.0.1:7897",
+                          "ALL_PROXY":  "http://127.0.0.1:7897",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  4044,
+                          "Name":  "ChatGPT",
+                          "TZ":  "Asia/Tokyo",
+                          "HTTP_PROXY":  "http://127.0.0.1:7897",
+                          "HTTPS_PROXY":  "http://127.0.0.1:7897",
+                          "ALL_PROXY":  "http://127.0.0.1:7897",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  5424,
+                          "Name":  "ChatGPT",
+                          "TZ":  "\u003cNOT SET\u003e",
+                          "HTTP_PROXY":  "\u003cNOT SET\u003e",
+                          "HTTPS_PROXY":  "\u003cNOT SET\u003e",
+                          "ALL_PROXY":  "\u003cNOT SET\u003e",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  21608,
+                          "Name":  "ChatGPT",
+                          "TZ":  "Asia/Tokyo",
+                          "HTTP_PROXY":  "http://127.0.0.1:7897",
+                          "HTTPS_PROXY":  "http://127.0.0.1:7897",
+                          "ALL_PROXY":  "http://127.0.0.1:7897",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  24016,
+                          "Name":  "ChatGPT",
+                          "TZ":  "\u003cNOT SET\u003e",
+                          "HTTP_PROXY":  "\u003cNOT SET\u003e",
+                          "HTTPS_PROXY":  "\u003cNOT SET\u003e",
+                          "ALL_PROXY":  "\u003cNOT SET\u003e",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  25524,
+                          "Name":  "ChatGPT",
+                          "TZ":  "\u003cNOT SET\u003e",
+                          "HTTP_PROXY":  "\u003cNOT SET\u003e",
+                          "HTTPS_PROXY":  "\u003cNOT SET\u003e",
+                          "ALL_PROXY":  "\u003cNOT SET\u003e",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  28184,
+                          "Name":  "ChatGPT",
+                          "TZ":  "\u003cNOT SET\u003e",
+                          "HTTP_PROXY":  "\u003cNOT SET\u003e",
+                          "HTTPS_PROXY":  "\u003cNOT SET\u003e",
+                          "ALL_PROXY":  "\u003cNOT SET\u003e",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  34224,
+                          "Name":  "ChatGPT",
+                          "TZ":  "Asia/Tokyo",
+                          "HTTP_PROXY":  "http://127.0.0.1:7897",
+                          "HTTPS_PROXY":  "http://127.0.0.1:7897",
+                          "ALL_PROXY":  "http://127.0.0.1:7897",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  36260,
+                          "Name":  "ChatGPT",
+                          "TZ":  "\u003cNOT SET\u003e",
+                          "HTTP_PROXY":  "\u003cNOT SET\u003e",
+                          "HTTPS_PROXY":  "\u003cNOT SET\u003e",
+                          "ALL_PROXY":  "\u003cNOT SET\u003e",
+                          "NO_PROXY":  null
+                      },
+                      {
+                          "PID":  3572,
+                          "Name":  "codex",
+                          "TZ":  "Asia/Tokyo",
+                          "HTTP_PROXY":  "http://127.0.0.1:7897",
+                          "HTTPS_PROXY":  "http://127.0.0.1:7897",
+                          "ALL_PROXY":  "http://127.0.0.1:7897",
+                          "NO_PROXY":  null
+                      }
+                  ],
+    "NetworkConnections":  [
+                               {
+                                   "OwningProcess":  3572,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  12097,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  3572,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  12097,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  1209,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  1209,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  1263,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  1263,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  1291,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  1291,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  4234,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  4234,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  4254,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  4254,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  4745,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  4745,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  5297,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  5297,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  6116,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  6116,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  6126,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  6126,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  6431,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  6431,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  6780,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  6780,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  6900,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  6900,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  8142,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  8142,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  10761,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  10761,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  11411,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  11411,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  12185,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  12185,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "0.0.0.0",
+                                   "LocalPort":  14249,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  100
+                               },
+                               {
+                                   "OwningProcess":  4044,
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  14249,
+                                   "RemoteAddress":  "127.0.0.1",
+                                   "RemotePort":  7897,
+                                   "State":  5
+                               }
+                           ],
+    "ResidualRegistryVariables":  {
+                                      "ALL_PROXY":  null,
+                                      "TZ":  null,
+                                      "HTTPS_PROXY":  null,
+                                      "HTTP_PROXY":  null,
+                                      "NO_PROXY":  null
+                                  },
+    "RemainingWalFiles":  0
+}
