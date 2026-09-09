@@ -15,95 +15,49 @@
 
 ---
 
-## 📖 Overview & Problem Statement
+## 📖 Overview
 
-**ChatGPT Windows Network Launcher** is a dedicated native Windows helper application for the official ChatGPT desktop client (fully compatible with both Microsoft Store `OpenAI.Codex` and Standalone desktop editions).
-
-### Background & Pain Points
-The official Windows ChatGPT desktop client is built upon Chromium/Electron. However, it **does not provide any native proxy or connection settings in its user interface**:
-- **Frequent Reconnecting & Timeouts**: In restrictive network environments, the client often gets trapped in infinite `Reconnecting...` loops, connection drops, or blank screens;
-- **Severe Side Effects of Global VPNs**: The typical workaround requires switching the entire system to a global VPN or TUN/TAP virtual network adapter, which hijacks **all** traffic on your machine, slowing down local applications and disrupting LAN services;
-- **Timezone vs Egress IP Discrepancies**: Severe mismatches between the local Windows system timezone and the proxy egress location (e.g., node located in Tokyo UTC+9 while the client reports UTC+8) can trigger multi-factor client anomaly detection.
-
-### Our Solution
-This project delivers **process-level environment variable injection**, **sub-second Write-Ahead Logging (WAL) transaction rollback**, and **authoritative HTTPS egress timezone verification**, enabling the ChatGPT client to utilize a dedicated local proxy channel while keeping the Windows system clock, global proxies, and other running applications **100% untouched and clean**.
+A native helper launcher for the official Windows ChatGPT desktop client (Microsoft Store `OpenAI.Codex` and Standalone). The client is built on Chromium/Electron but offers no proxy settings in its UI, so restrictive networks cause `Reconnecting...` loops and timeouts — and the usual fix (global VPN / TUN) hijacks the whole machine. This project uses **process-level environment injection** + **sub-second WAL rollback** + **authoritative HTTPS egress verification**, giving ChatGPT a dedicated proxy while leaving the **system timezone and global proxy 100% untouched**.
 
 ---
 
 ## 🚀 Quick Start
 
-### Method 1: Pre-built Executable (Get Started in 30 Seconds)
-1. Go to the [Releases page](../../releases) and download the latest `ChatGPTAntiBanLauncher.exe` (a single portable binary of ~50-90 KB, zero installation required);
-2. Run the application;
-3. Select Local Proxy mode and specify your local port (e.g. `7897` for Clash, `7890` for v2rayN);
-4. Click **【🔍 Detect Current Node】**, then click **【⚡ Match This Timezone】**;
-5. Click **【🚀 Save & Launch】** to start the client seamlessly;
-6. *(Optional)* Click **【📌 Create Desktop Shortcut】** for 1-click access from your desktop.
+1. Download `ChatGPTAntiBanLauncher.exe` from [Releases](../../releases) (portable, ~50-90 KB);
+2. Launch, pick **Local Proxy mode**, and confirm your port (Clash `7897` / v2rayN `7890`);
+3. Click **Detect Egress Node**, then **Match This Timezone** to align the timezone;
+4. Click **Save & Launch** to start the client; *(optional)* create a **desktop shortcut**.
 
-### Method 2: Headless Command Line Mode
-The launcher supports command-line invocation for scripts, startup routines, and automations:
-```cmd
-REM Launch client immediately using saved configuration
-ChatGPTAntiBanLauncher.exe --launch
-
-REM View command line help
-ChatGPTAntiBanLauncher.exe --help
-```
+**Headless**: `ChatGPTAntiBanLauncher.exe --launch` (launch with saved config) & `--help`.
 
 ---
 
 ## ✨ Key Features
 
-### 1. 🟢 Dual-Mode Proxy Injection
-- **Local Proxy Mode**: Injects `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` environment variables into the target process;
-- **Explicit Direct Mode**: Actively strips inherited proxy variables to guarantee a pure direct connection;
-- **One-Click Presets**: Preconfigured with common local proxy ports (`7897 (Clash Verge / Mihomo)`, `7890 (v2rayN)`, `10808 (Xray)`, `1080 (Shadowsocks)`), equipped with live socket listening probes;
-- **Strict Input Validation**: Port inputs are validated strictly within 1~65535, preventing silent fallback.
-
-### 2. 🕒 Target Timezone & Chromium V8 POSIX Compatibility
-- Supports standard IANA timezone names (e.g., `America/Los_Angeles`, `Asia/Tokyo`) and explicit UTC offsets;
-- **V8 Engine POSIX Mapping**: Converts UTC offsets to POSIX-compliant `Etc/GMT` formats, bypassing a known V8/Chromium defect on Windows that mistakes non-standard `UTC-X` for `Etc/Unknown`;
-- **Strict Non-DST Enforcement**: Only permits offsets that map to permanent non-DST timezones (such as Kathmandu +5:45, Kolkata +5:30, Darwin +9:30). Offsets subject to seasonal DST shifts without static alternatives (e.g. Newfoundland -3:30) are rejected with clear errors, strictly forbidding unsafe silent fallbacks;
-- **Bypass Option**: Offers a "Disable Timezone Spoofing" toggle to inject only network proxies without touching timezone variables.
-
-### 3. 🔍 Authoritative HTTPS Egress Probe & Security Alignment
-- Entirely relies on secure HTTPS GeoIP endpoints—zero plaintext HTTP;
-- **Strict TLS Certificate Chain Validation**: Enforces TLS 1.2+ handshake and eliminates all insecure certificate bypasses;
-- Accurately classifies certificate errors, proxy unreachable, network timeouts, and HTTP errors;
-- Objectively compares the configured timezone with the actual egress location, offering a **【⚡ Match This Timezone】** button.
-
-### 4. ⚡ Write-Ahead Logging (WAL) & Compare-and-Restore
-- **Strict Variable Whitelist**: Confined strictly to 5 trusted keys (`TZ`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`); critical system variables like `PATH` are untouchable;
-- **Cross-Session Mutex Guarantee**: Employs a global mutex bound to the current user SID (`Global\ChatGPTLauncher_EnvLock_<UserSID>`), with zero silent fallback to local locks;
-- **Compare-and-Restore Conflict Protection**: If an external application modifies environment variables during the launch window, the launcher preserves the external value, outputs an amber warning in the UI, and redacts sensitive credentials from logs;
-- **Sub-Second Transient Rollback**: Environment variables are restored to their original state within milliseconds of client launch.
-
-### 5. 🛡️ Precise Process Identification & Graceful Exit
-- Matches exact canonical path boundaries, preventing accidental kills of processes in similar prefix directories (`ChatGPT-other`);
-- Sends `CloseMainWindow()` to prompt graceful exit before launch; refuses to force-kill without explicit user authorization callback, preventing loss of unsaved chat drafts.
-
-### 6. 🪶 Lightweight Native Build & Atomic Config
-- Built purely with native C# Windows Forms, compiling into a tiny standalone executable (~50-90 KB);
-- Uses Safe Atomic Replace for settings persistence: if the target file is locked, existing settings are 100% preserved without deleting the file;
-- Supports creating a 1-click desktop shortcut.
+- **🟢 Dual-mode proxy**: injects `HTTP_PROXY` etc. in Local Proxy mode; strips inherited dirty proxy vars in Direct mode. Port presets (7897/7890/10808/1080) with socket probes and strict 1~65535 validation.
+- **🕒 Timezone config**: IANA cities & UTC offsets; auto-converts to POSIX `Etc/GMT` to bypass Chromium's V8 `UTC-X` defect; rejects unreliable DST-shifting offsets; optional "disable spoofing".
+- **🔍 Egress detection**: HTTPS-only GeoIP with strict TLS 1.2+, objectively aligns selected vs. actual egress timezone with 1-click apply.
+- **⚡ WAL & Compare-and-Restore**: whitelisted 5 env vars only; user-SID global mutex prevents concurrent races; preserves external modifications (amber warning); sub-second cleanup with zero registry residue.
+- **🛡️ Process safety**: canonical path/boundary checks; prefers `CloseMainWindow()`, refuses force-kill without explicit consent.
+- **🪶 Lightweight**: pure C# WinForms, single ~50-90 KB `.exe`, no install; atomic config save never deletes the original.
+- **🎨 Modern UI**: light/dark theme toggle with persistent follow-system (`theme_mode`); rounded cards + icon set + status animations; collapsible log bar; high-DPI adaptive button sizing.
 
 ---
 
 ## 📊 Solution Comparison
 
-| Dimension | System-Wide TUN / TAP Mode | Manual Batch Script (.bat) | This Launcher |
+| Dimension | System-Wide TUN / TAP | Manual Batch Script (.bat) | This Launcher |
 | :--- | :---: | :---: | :---: |
-| **Proxy Scope** | ❌ Hijacks all system traffic | ⚠️ Child process only, error-prone | 🟢 **Scoped strictly to ChatGPT process** |
-| **System Pollution** | ❌ Modifies global routing / adapters | ❌ Prone to leftover dirty variables | 🟢 **100% Zero-pollution (WAL rollback)** |
-| **Concurrency Protection** | ➖ None | ❌ Concurrent runs corrupt state | 🟢 **User SID-based Global Mutex** |
-| **External Modification** | ➖ None | ❌ Overwrites external configs | 🟢 **Compare-and-Restore preservation** |
-| **Egress IP & Timezone** | ❌ None | ❌ None | 🟢 **HTTPS probe & 1-click alignment** |
-| **Timezone POSIX Engine** | ❌ Requires changing system clock | ⚠️ Naive offset causes V8 crash | 🟢 **Strict POSIX & Non-DST safeguards** |
-| **Runtime Dependencies** | Requires TAP driver installation | None | 🟢 **Pure C# — zero dependencies** |
+| **Proxy Scope** | ❌ Hijacks all traffic | ⚠️ Child process only, error-prone | 🟢 **Scoped to ChatGPT only** |
+| **System Pollution** | ❌ Modifies routing/adapters | ❌ Leftover dirty vars | 🟢 **Zero-pollution (WAL rollback)** |
+| **Conflict Protection** | ➖ None | ❌ Concurrent runs corrupt state | 🟢 **User SID global mutex** |
+| **Egress Sensing** | ❌ None | ❌ None | 🟢 **HTTPS probe + 1-click alignment** |
+| **Timezone Engine** | ❌ Changes system clock | ⚠️ Naive offsets break V8 | 🟢 **POSIX + Non-DST safeguards** |
+| **Dependencies** | Requires TAP driver | None | 🟢 **Pure C#, zero deps** |
 
 ---
 
-## 🏗️ Architecture & Workflow
+## 🏗️ Architecture
 
 ```mermaid
 sequenceDiagram
@@ -113,115 +67,73 @@ sequenceDiagram
     participant Lock as Global SID Mutex
     participant WAL as Disk WAL File
     participant Shell as Windows Host Env (Registry / COM)
-    participant App as ChatGPT Client (ChatGPT.exe)
+    participant App as ChatGPT Client
 
     User->>UI: Click [Save & Launch]
     UI->>Lock: Acquire Global\ChatGPTLauncher_EnvLock_<SID>
-    Note over Lock: Cross-session mutex prevents concurrent race conditions
+    Note over Lock: Cross-session mutex prevents concurrent races
     Lock-->>UI: Lock acquired
-    UI->>WAL: Write initial state snapshot and Flush(true) to disk
-    UI->>Shell: Temporarily inject whitelisted vars (TZ / HTTP_PROXY)
-    UI->>App: Launch client (Standalone isolated process or Store COM activation)
-    Note over App: Process tree (Main, NetworkService, codex.exe) adopts proxy
-    UI->>Shell: Execute Compare-and-Restore rollback
-    Note over Shell: Restores original values; preserves external modifications
-    UI->>WAL: Validate and cleanly delete WAL file
-    UI->>Lock: Release Global Mutex
-    UI-->>User: Launch success notification (System state 100% clean)
+    UI->>WAL: Write snapshot & Flush(true)
+    UI->>Shell: Inject whitelisted vars (TZ / HTTP_PROXY)
+    UI->>App: Launch client (Standalone isolated process or Store COM)
+    Note over App: Process tree adopts proxy
+    UI->>Shell: Compare-and-Restore rollback
+    Note over Shell: Restores originals; preserves external edits
+    UI->>WAL: Clean up transaction log
+    UI->>Lock: Release mutex
+    UI-->>User: Launch success (system 100% clean)
 ```
 
 ---
 
-## 🖥️ System Requirements
+## 🖥️ Requirements
 
-- **Operating System**: Windows 10 / Windows 11 (64-bit)
-- **Runtime**: .NET Framework 4.5 or higher (**Built into Windows 10 and 11 by default; no additional runtimes or SDKs required**)
-- **Client Editions Supported**:
-  - Microsoft Store Edition (`OpenAI.Codex`)
-  - Standalone Desktop Installer Edition
+Windows 10/11 (64-bit), built-in .NET Framework 4.5+ (**no runtime install needed**). Supports Store `OpenAI.Codex` and Standalone desktop editions.
 
 ---
 
 ## 🛠️ Building & Testing
 
-No Node.js, Python, or heavy .NET SDK installations are needed. You can compile directly using Windows' built-in `csc.exe`:
+Uses the built-in `csc.exe` — no Node/Visual Studio/.NET SDK required.
 
-### 1. Build Only
-Run `compile.bat` or execute in command prompt:
-```cmd
-compile.bat
-```
-Or with:
-```cmd
-build.bat /build-only
-```
-Upon completion, `ChatGPTAntiBanLauncher.exe` will be generated in the root directory.
-
-### 2. Build and Run
-Execute `build.bat` to compile and launch the GUI immediately.
-
-### 3. Run Automated Isolated Test Suite
-Run all 3 suites of unit and defensive tests in an isolated sandbox environment:
-```cmd
-run_tests.bat
-```
-> **Results**: 162 defense tests + 45 component tests + 5 transaction tests = **212 automated assertions passed with 100% success**.
+- **Build only**: `compile.bat` → `ChatGPTAntiBanLauncher.exe`; `build.bat` builds and launches.
+- **Full tests**: `run_tests.bat` — 3 isolated suites, **212 assertions 100% passed** (mutex, WAL recovery, atomic save, POSIX validation; never touches the real registry).
 
 ---
 
-## 🔬 In-Depth Engineering Reports
+## 🔬 Technical Reports
 
-For complete technical transparency and verifiable evidence, review our audit reports:
-
-- 📄 **[L4 Real Client Acceptance Report (REAL_CLIENT_ACCEPTANCE_REPORT.md)](docs/reports/REAL_CLIENT_ACCEPTANCE_REPORT.md)**:
-  - Direct Win32 PEB extraction evidence proving `HTTP_PROXY` and `TZ` injection across `ChatGPT.exe`, `NetworkService`, and `codex.exe`;
-  - Dynamic socket polling proving **100% of outbound connections route through the local proxy** (0 direct public IP connections);
-  - Explains the Chromium Renderer sandbox environment clearing behavior.
-- 📄 **[v0.5 Engineering Validation Report (VALIDATION_REPORT_V0_5.md)](docs/reports/VALIDATION_REPORT_V0_5.md)**:
-  - Details the methodology and results for all 212 automated assertions.
-- 📄 **[Project Memory & Engineering Retrospective (PROJECT_MEMORY.md)](docs/dev/PROJECT_MEMORY.md)**:
-  - Engineering insights on High-DPI scaling, Windows batch multi-byte drift prevention, and namespace isolation.
+- 📄 [L4 Real Client Acceptance Report](docs/reports/REAL_CLIENT_ACCEPTANCE_REPORT.md) — PEB evidence proving 100% of outbound traffic routes through the proxy (0 direct connections).
+- 📄 [v0.5 Validation Report](docs/reports/VALIDATION_REPORT_V0_5.md) — methodology & coverage of the 212 assertions.
+- 📄 [Project Memory](docs/dev/PROJECT_MEMORY.md) — high-DPI scaling, batch multi-byte drift, namespace isolation lessons.
 
 ---
 
-## ❓ FAQ & Troubleshooting
+## ❓ FAQ
 
-<details>
-<summary><b>Q1: Will Windows Defender or Antivirus flag this application?</b></summary>
-<br>
-This is an open-source, pure C# project compiled via Windows' native <code>csc.exe</code>. Because it is an independent open-source project without a costly commercial code-signing certificate, heuristic detection in some antivirus software may occasionally raise a false positive.
-<br><br>
-<b>Resolution</b>: All source code is completely open and auditable in this repository. You can review the code and compile it locally using <code>compile.bat</code> with complete confidence.
+<details><summary><b>Q1: Will antivirus / Windows Defender flag this?</b></summary>
+
+It's open-source, pure C#, compiled with the built-in `csc.exe`. As an unsigned lightweight launcher it may occasionally trigger heuristic false positives. Review the code and compile locally with `compile.bat` for full confidence.
 </details>
 
-<details>
-<summary><b>Q2: Why does the Store App chat page still display my local computer time?</b></summary>
-<br>
-As verified in our <a href="docs/reports/REAL_CLIENT_ACCEPTANCE_REPORT.md">L4 Acceptance Report</a>:
-<ol>
-  <li>For sandbox security, Chromium explicitly sets <code>clear_environment = true</code> when spawning <code>--type=renderer</code> processes, stripping non-essential environment variables;</li>
-  <li>On Windows, Chromium's DOM prefers native Win32 clock APIs over POSIX <code>TZ</code> variables;</li>
-  <li><b>Network routing is unaffected</b>: All external network requests are handled by <code>NetworkService</code> and <code>codex.exe</code>, which successfully adopt the proxy and timezone variables. 100% of outbound network traffic is properly routed through the proxy.</li>
-</ol>
+<details><summary><b>Q2: Why does the Store-app chat page still show local time?</b></summary>
+
+For sandbox safety, Chromium sets `clear_environment = true` on renderer processes and prefers native clock APIs over POSIX `TZ`. **This does not affect the network core**: `NetworkService` and `codex.exe` adopt the proxy/timezone and route 100% of traffic through the proxy.
 </details>
 
-<details>
-<summary><b>Q3: Does closing the launcher alter my system's global timezone or proxy?</b></summary>
-<br>
-<b>Never.</b> Zero system pollution is a core design principle. The launcher rolls back environment variables to their exact original values via WAL rollback within milliseconds of launching the client.
+<details><summary><b>Q3: Does closing the launcher change my system timezone/proxy?</b></summary>
+
+**No.** Zero system pollution is the core principle — env vars are rolled back to their exact original values within milliseconds of launch.
 </details>
 
 ---
 
-## 🔒 Security & Disclaimer
+## 🔒 Disclaimer
 
-1. **Non-Affiliation**: This project is an independent third-party utility and is **not affiliated with, endorsed by, sponsored by, or associated with OpenAI, ChatGPT, or Microsoft**. "ChatGPT" is a trademark of OpenAI;
-2. **Non-Invasive Architecture**: This software relies solely on documented operating system APIs. It contains **no DLL injection, no memory hooks, and does not modify any client binary files**;
-3. **Privacy Assurance**: No telemetry, analytics, or credential harvesting code is present;
-4. **Disclaimer**: Users are responsible for complying with applicable local laws and OpenAI's Terms of Service (ToS). The authors and contributors assume no liability for misuse.
+An independent third-party utility, **not affiliated with or endorsed by OpenAI / Microsoft**; uses no memory hooks, injection, or reverse-engineering; contains no telemetry or analytics. Users are responsible for complying with local laws and OpenAI's ToS.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT License](LICENSE)

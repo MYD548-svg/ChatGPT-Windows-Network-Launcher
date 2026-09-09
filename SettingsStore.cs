@@ -36,6 +36,10 @@ namespace ChatGPTAntiBanLauncher
         [DataMember(Name = "auto_detect_proxy", Order = 9, IsRequired = false)]
         public bool AutoDetectProxy { get; set; }
 
+        // "auto" | "light" | "dark"
+        [DataMember(Name = "theme_mode", Order = 10, IsRequired = false)]
+        public string ThemeMode { get; set; }
+
         public LauncherSettings()
         {
             Mode = "iana";
@@ -48,6 +52,7 @@ namespace ChatGPTAntiBanLauncher
             ProxyHost = "127.0.0.1";
             ProxyPort = 7897;
             AutoDetectProxy = true;
+            ThemeMode = "auto";
         }
 
         [OnDeserializing]
@@ -129,6 +134,11 @@ namespace ChatGPTAntiBanLauncher
                         if (!string.IsNullOrEmpty(loaded.ProxyHost)) settings.ProxyHost = loaded.ProxyHost;
                         if (loaded.ProxyPort > 0 && loaded.ProxyPort <= 65535) settings.ProxyPort = loaded.ProxyPort;
                         settings.AutoDetectProxy = loaded.AutoDetectProxy;
+                        if (!string.IsNullOrEmpty(loaded.ThemeMode))
+                        {
+                            string tm = loaded.ThemeMode.Trim().ToLowerInvariant();
+                            if (tm == "auto" || tm == "light" || tm == "dark") settings.ThemeMode = tm;
+                        }
                     }
                 }
             }

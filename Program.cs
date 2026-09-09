@@ -65,6 +65,7 @@ namespace ChatGPTAntiBanLauncher
         private CheckBox chkGracefulClose;
         private Panel pnlPresets;
         private List<ModernButton> presetButtons = new List<ModernButton>();
+        private List<ModernButton> portChips = new List<ModernButton>();
 
         // UI Controls - Live Preview
         private RoundedCard cardPreview;
@@ -79,6 +80,26 @@ namespace ChatGPTAntiBanLauncher
         private ModernButton btnShortcut;
         private Label lblClientFoundStatus;
 
+        // UI Controls - Theme / Log / Activity
+        private ModernButton btnThemeToggle;
+        private ModernButton btnLogToggle;
+        private LoadingSpinner busySpinner;
+        private LoadingSpinner detectSpinner;
+        private Panel pnlLog;
+        private Panel pnlActions;
+        private Panel pnlHeader;
+        private Panel pnlBottom;
+        private Label[] logRowLabels;
+        private readonly string[] logTexts = new string[3];
+        private readonly Color[] logColors = new Color[3];
+        private bool logExpanded = false;
+        private ToolTip tooltips;
+        private System.Windows.Forms.Timer pulseTimer;
+        private Color currentStatusColor = Color.FromArgb(34, 197, 94);
+        private int pulseStep = 0;
+        private const int BottomBarCollapsedHeight = 70;
+        private const int BottomBarExpandedHeight = 152;
+
         public MainForm()
         {
             string loadErr;
@@ -91,9 +112,12 @@ namespace ChatGPTAntiBanLauncher
             targetClient = ChatGPTLocator.LocateClient();
 
             ApplyModernFormStyle();
+            tooltips = new ToolTip();
             InitializeModernComponents();
             ApplySettingsToUI();
             UpdatePreview();
+            ApplyTheme(ResolveStartupThemeIsDark());
+            StartPulseTimer();
 
             if (recoveryRes != null && recoveryRes.HasDangling)
             {
@@ -137,20 +161,10 @@ namespace ChatGPTAntiBanLauncher
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = BgWindow;
             this.DoubleBuffered = true;
-            this.AutoScaleMode = AutoScaleMode.None;
+            this.AutoScaleMode = AutoScaleMode.Dpi;
 
+            // 中文 UI 固定使用微软雅黑；Segoe UI Variable Text 无中文字形，回退度量不可控
             Font baseFont = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            try
-            {
-                using (Font test = new Font("Segoe UI Variable Text", 9F))
-                {
-                    if (test.Name == "Segoe UI Variable Text")
-                    {
-                        baseFont = new Font("Segoe UI Variable Text", 9F);
-                    }
-                }
-            }
-            catch { }
             this.Font = baseFont;
 
             try
@@ -164,11 +178,11 @@ namespace ChatGPTAntiBanLauncher
         private void InitializeModernComponents()
         {
             // Bottom Action Bar
-            Panel pnlBottom = new Panel
+            pnlBottom = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Width = this.ClientSize.Width,
-                Height = 88,
+                Height = BottomBarCollapsedHeight,
                 BackColor = BgWindow
             };
 
@@ -183,17 +197,17 @@ namespace ChatGPTAntiBanLauncher
             int bottomPadX = 20;
             Panel pnlStatus = new Panel
             {
-                Location = new Point(bottomPadX, 10),
-                Size = new Size(this.ClientSize.Width - bottomPadX * 2, 22),
+                Location = new Point(bottomPadX, 6),
+                Size = new Size(this.ClientSize.Width - bottomPadX * 2, 20),
                 BackColor = Color.Transparent
             };
             lblStatusDot = new Label
             {
                 Text = "●",
-                Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 8F, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.FromArgb(34, 197, 94),
-                Location = new Point(0, 2),
-                Size = new Size(16, 18),
+                Location = new Point(0, 1),
+                Size = new Size(14, 18),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             lblStatusText = new Label
@@ -201,24 +215,50 @@ namespace ChatGPTAntiBanLauncher
                 Text = "就绪 - 独立进程环境隔离启动准备完毕",
                 Font = new Font(this.Font.FontFamily, 8.5F, FontStyle.Regular),
                 ForeColor = TextSecondary,
-                Location = new Point(18, 2),
-                Size = new Size(pnlStatus.Width - 20, 18),
+                Location = new Point(16, 1),
+                Size = new Size(pnlStatus.Width - 130, 18),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             pnlStatus.Controls.Add(lblStatusDot);
             pnlStatus.Controls.Add(lblStatusText);
+
+            busySpinner = new LoadingSpinner
+            {
+                Size = new Size(15, 15),
+                Location = new Point(pnlStatus.Width - 104, 2),
+                ForeColor = AccentBlue
+            };
+            pnlStatus.Controls.Add(busySpinner);
+
+            btnLogToggle = new ModernButton
+            {
+                Text = "运行日志 ▸",
+                Font = new Font(this.Font.FontFamily, 7.5F, FontStyle.Regular),
+                Location = new Point(pnlStatus.Width - 84, 0),
+                Size = new Size(84, 20),
+                BackColor = BgCard,
+                ForeColor = TextSecondary,
+                BorderColor = BorderCard,
+                HoverColor = Color.FromArgb(241, 245, 249),
+                PressedColor = Color.FromArgb(226, 232, 240),
+                CornerRadius = 4
+            };
+            btnLogToggle.Click += (s, e) => ToggleLogPanel();
+            tooltips.SetToolTip(btnLogToggle, "展开/收起最近状态记录");
+            pnlStatus.Controls.Add(btnLogToggle);
             pnlBottom.Controls.Add(pnlStatus);
 
-            Panel pnlActions = new Panel
+            pnlActions = new Panel
             {
-                Location = new Point(bottomPadX, 36),
-                Size = new Size(this.ClientSize.Width - bottomPadX * 2, 40),
+                Location = new Point(bottomPadX, 30),
+                Size = new Size(this.ClientSize.Width - bottomPadX * 2, 36),
                 BackColor = Color.Transparent
             };
 
             btnShortcut = new ModernButton
             {
                 Text = "桌面快捷方式",
+                IconChar = "\uE718",
                 Location = new Point(0, 0),
                 Size = new Size(130, 36),
                 BackColor = BgCard,
@@ -234,6 +274,7 @@ namespace ChatGPTAntiBanLauncher
             btnSave = new ModernButton
             {
                 Text = "仅保存配置",
+                IconChar = "\uE74E",
                 Location = new Point(140, 0),
                 Size = new Size(120, 36),
                 BackColor = BgCard,
@@ -248,7 +289,8 @@ namespace ChatGPTAntiBanLauncher
 
             btnLaunch = new ModernButton
             {
-                Text = "🚀 保存并启动 ChatGPT",
+                Text = "保存并启动 ChatGPT",
+                IconChar = "\uE768",
                 Location = new Point(270, 0),
                 Size = new Size(pnlActions.Width - 270, 36),
                 BackColor = AccentBlue,
@@ -262,17 +304,51 @@ namespace ChatGPTAntiBanLauncher
             btnLaunch.Click += (s, e) => LaunchChatGPT();
             pnlActions.Controls.Add(btnLaunch);
 
+            pnlBottom.Controls.Add(pnlActions);
+
+            // Collapsible status log panel (hidden by default)
+            pnlLog = new Panel
+            {
+                Location = new Point(bottomPadX, 72),
+                Size = new Size(this.ClientSize.Width - bottomPadX * 2, BottomBarExpandedHeight - 80),
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            logRowLabels = new Label[3];
+            for (int i = 0; i < logRowLabels.Length; i++)
+            {
+                Label row = new Label
+                {
+                    Location = new Point(0, 2 + i * 24),
+                    Size = new Size(pnlLog.Width, 20),
+                    Font = new Font(this.Font.FontFamily, 7.5F, FontStyle.Regular),
+                    ForeColor = TextSecondary,
+                    BackColor = Color.Transparent,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    AutoEllipsis = true
+                };
+                logRowLabels[i] = row;
+                pnlLog.Controls.Add(row);
+            }
+            pnlBottom.Controls.Add(pnlLog);
+
             pnlBottom.Resize += (s, e) =>
             {
                 int fullW = pnlBottom.ClientSize.Width;
                 int innerW = Math.Max(200, fullW - bottomPadX * 2);
                 pnlStatus.Width = innerW;
-                lblStatusText.Width = Math.Max(50, innerW - 20);
+                lblStatusText.Width = Math.Max(50, innerW - 130);
+                btnLogToggle.Left = innerW - btnLogToggle.Width;
+                busySpinner.Left = btnLogToggle.Left - 20;
                 pnlActions.Width = innerW;
-                if (btnLaunch != null) btnLaunch.Width = Math.Max(100, innerW - 270);
+                if (btnLaunch != null) btnLaunch.Width = Math.Max(100, innerW - btnLaunch.Left);
+                pnlLog.Width = innerW;
+                foreach (Label row in logRowLabels)
+                {
+                    if (row != null) row.Width = innerW;
+                }
             };
 
-            pnlBottom.Controls.Add(pnlActions);
             this.Controls.Add(pnlBottom);
 
             // Scrollable Content Area
@@ -290,7 +366,7 @@ namespace ChatGPTAntiBanLauncher
             int curY = 16;
 
             // 1. Header Area
-            Panel pnlHeader = new Panel
+            pnlHeader = new Panel
             {
                 Location = new Point(padX, curY),
                 Size = new Size(cardWidth, 60),
@@ -307,13 +383,30 @@ namespace ChatGPTAntiBanLauncher
             };
             Label lblLogo = new Label
             {
-                Text = "🌐",
-                Font = new Font("Segoe UI Emoji", 20F, FontStyle.Regular),
+                Text = IconFonts.IsAvailable ? "\uE774" : "●",
+                Font = IconFonts.Get(19F),
+                ForeColor = AccentBlue,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
             };
             iconBadge.Controls.Add(lblLogo);
             pnlHeader.Controls.Add(iconBadge);
+
+            btnThemeToggle = new ModernButton
+            {
+                Location = new Point(cardWidth - 34, 12),
+                Size = new Size(30, 30),
+                CornerRadius = 15,
+                BackColor = BgCard,
+                ForeColor = TextSecondary,
+                BorderColor = BorderCard,
+                HoverColor = Color.FromArgb(241, 245, 249),
+                PressedColor = Color.FromArgb(226, 232, 240),
+                Font = new Font(this.Font.FontFamily, 9F)
+            };
+            btnThemeToggle.Click += (s, e) => ToggleTheme();
+            tooltips.SetToolTip(btnThemeToggle, "切换浅色 / 深色主题");
+            pnlHeader.Controls.Add(btnThemeToggle);
 
             Label lblTitle = new Label
             {
@@ -344,12 +437,13 @@ namespace ChatGPTAntiBanLauncher
             cardProxy = CreateRoundedCard(padX, curY, cardWidth, 145);
             curY += 157;
 
-            Label lblProxyTitle = CreateCardTitle("🌐 网络代理模式", 16, 14);
+            Panel lblProxyTitle = CreateCardTitle("\uE774", "网络代理模式", 16, 14);
             cardProxy.Controls.Add(lblProxyTitle);
 
             btnModeVpn = new ModernButton
             {
-                Text = "🟢 本地代理模式",
+                Text = "本地代理模式",
+                DotColor = Color.FromArgb(5, 150, 105),
                 Location = new Point(16, 42),
                 Size = new Size(160, 34),
                 BackColor = Color.FromArgb(236, 253, 245),
@@ -363,7 +457,8 @@ namespace ChatGPTAntiBanLauncher
 
             btnModeDirect = new ModernButton
             {
-                Text = "🔵 直连模式 (清除代理变量)",
+                Text = "直连模式 (清除代理变量)",
+                DotColor = AccentBlue,
                 Location = new Point(184, 42),
                 Size = new Size(185, 34),
                 BackColor = BgCard,
@@ -423,7 +518,8 @@ namespace ChatGPTAntiBanLauncher
             int chipX = 162;
             btnAutoPort = new ModernButton
             {
-                Text = currentSettings.AutoDetectProxy ? "🟢 自动" : "⚡ 自动",
+                Text = "自动",
+                DotColor = currentSettings.AutoDetectProxy ? Color.FromArgb(5, 150, 105) : Color.FromArgb(148, 163, 184),
                 Location = new Point(chipX, 4),
                 Size = new Size(68, 26),
                 BackColor = currentSettings.AutoDetectProxy ? Color.FromArgb(236, 253, 245) : Color.FromArgb(248, 250, 252),
@@ -438,6 +534,7 @@ namespace ChatGPTAntiBanLauncher
                 UpdateAutoPortButtonVisual();
                 CheckProxyPortStatus();
             };
+            tooltips.SetToolTip(btnAutoPort, "自动探测正在监听的本地代理端口");
             pnlProxySettings.Controls.Add(btnAutoPort);
             chipX += 73;
 
@@ -464,6 +561,7 @@ namespace ChatGPTAntiBanLauncher
                     UpdateAutoPortButtonVisual();
                     txtProxyPort.Text = val.ToString();
                 };
+                portChips.Add(portBtn);
                 pnlProxySettings.Controls.Add(portBtn);
                 chipX += 93;
             }
@@ -485,12 +583,13 @@ namespace ChatGPTAntiBanLauncher
             cardNodeDetect = CreateRoundedCard(padX, curY, cardWidth, 152);
             curY += 164;
 
-            Label lblDetectTitle = CreateCardTitle("🔍 节点公网出口感知与时区一致性核对", 16, 14);
+            Panel lblDetectTitle = CreateCardTitle("\uE721", "节点公网出口感知与时区一致性核对", 16, 14);
             cardNodeDetect.Controls.Add(lblDetectTitle);
 
             btnDetect = new ModernButton
             {
-                Text = "🔍 检测公网出口",
+                Text = "检测公网出口",
+                IconChar = "\uE721",
                 Location = new Point(16, 42),
                 Size = new Size(130, 32),
                 BackColor = BgCard,
@@ -503,10 +602,19 @@ namespace ChatGPTAntiBanLauncher
             btnDetect.Click += (s, e) => DetectCurrentNode();
             cardNodeDetect.Controls.Add(btnDetect);
 
+            detectSpinner = new LoadingSpinner
+            {
+                Size = new Size(16, 16),
+                Location = new Point(152, 50),
+                ForeColor = AccentBlue
+            };
+            cardNodeDetect.Controls.Add(detectSpinner);
+
             btnApplyDetectedTz = new ModernButton
             {
-                Text = "⚡ 采用该节点时区",
-                Location = new Point(154, 42),
+                Text = "采用该节点时区",
+                IconChar = "\uE73E",
+                Location = new Point(176, 42),
                 Size = new Size(140, 32),
                 BackColor = Color.FromArgb(236, 253, 245),
                 ForeColor = Color.FromArgb(5, 150, 105),
@@ -557,7 +665,7 @@ namespace ChatGPTAntiBanLauncher
             cardTz = CreateRoundedCard(padX, curY, cardWidth, 245);
             curY += 257;
 
-            Label lblTzTitle = CreateCardTitle("⚙️ 目标时区配置 (TZ 环境变量)", 16, 14);
+            Panel lblTzTitle = CreateCardTitle("\uE713", "目标时区配置 (TZ 环境变量)", 16, 14);
             cardTz.Controls.Add(lblTzTitle);
 
             Label lblMode = new Label
@@ -652,7 +760,7 @@ namespace ChatGPTAntiBanLauncher
             cardPreview = CreateRoundedCard(padX, curY, cardWidth, 100);
             curY += 112;
 
-            Label lblPreviewTitle = CreateCardTitle("📊 拟注入环境变量预览", 16, 12);
+            Panel lblPreviewTitle = CreateCardTitle("\uE890", "拟注入环境变量预览", 16, 12);
             cardPreview.Controls.Add(lblPreviewTitle);
 
             lblPreviewTzBadge = new Label
@@ -690,6 +798,7 @@ namespace ChatGPTAntiBanLauncher
                     cardTz.Width = w;
                     cardPreview.Width = w;
                     pnlHeader.Width = w;
+                    if (btnThemeToggle != null) btnThemeToggle.Left = w - 34;
                     pnlProxySettings.Width = w - 32;
                     comboMode.Width = w - 120;
                     comboIana.Width = w - 120;
@@ -701,6 +810,93 @@ namespace ChatGPTAntiBanLauncher
                     lblPreviewProxyBadge.Width = w - 32;
                 }
             };
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // AutoScale 已在此刻完成，字体/DPI 处于最终状态，此时测量宽度才是准的
+            RelayoutButtons();
+        }
+
+        // 仅加宽到能完整显示内容（只增不减），上限为父容器剩余空间
+        private void GrowToFit(ModernButton b)
+        {
+            if (b == null || b.Parent == null) return;
+            int need = b.MeasureContentWidth();
+            int maxW = b.Parent.ClientSize.Width - b.Left - 4;
+            if (need > maxW) need = maxW;
+            if (need > b.Width) b.Width = need;
+        }
+
+        private void RelayoutButtons()
+        {
+            // 代理模式卡：两个模式按钮
+            GrowToFit(btnModeVpn);
+            GrowToFit(btnModeDirect);
+            if (btnModeVpn != null && btnModeDirect != null)
+            {
+                btnModeDirect.Left = btnModeVpn.Right + 8;
+            }
+
+            // 节点检测卡：检测按钮 + spinner + 采用按钮
+            GrowToFit(btnDetect);
+            GrowToFit(btnApplyDetectedTz);
+            if (btnDetect != null)
+            {
+                if (detectSpinner != null) detectSpinner.Left = btnDetect.Right + 6;
+                if (btnApplyDetectedTz != null) btnApplyDetectedTz.Left = btnDetect.Right + 30;
+            }
+
+            // 底栏：快捷方式/保存/启动
+            GrowToFit(btnShortcut);
+            GrowToFit(btnSave);
+            if (btnShortcut != null && btnSave != null && btnLaunch != null)
+            {
+                btnSave.Left = btnShortcut.Right + 10;
+                btnLaunch.Left = btnSave.Right + 10;
+                btnLaunch.Width = Math.Max(100, pnlActions.ClientSize.Width - btnLaunch.Left);
+            }
+
+            // 状态行右侧的日志切换按钮：右缘锚定，向左生长
+            if (btnLogToggle != null && btnLogToggle.Parent != null)
+            {
+                GrowToFit(btnLogToggle);
+                btnLogToggle.Left = btnLogToggle.Parent.ClientSize.Width - btnLogToggle.Width;
+                if (busySpinner != null) busySpinner.Left = btnLogToggle.Left - 20;
+            }
+
+            // 端口预设 chips：自动按钮右侧顺序流式重排
+            GrowToFit(btnAutoPort);
+            if (btnAutoPort != null && portChips.Count > 0)
+            {
+                int cx = btnAutoPort.Right + 5;
+                foreach (ModernButton chip in portChips)
+                {
+                    GrowToFit(chip);
+                    chip.Left = cx;
+                    cx = chip.Right + 5;
+                }
+            }
+
+            // 时区 chips：统一为最宽需求宽，保持 3 列网格
+            if (presetButtons.Count > 0 && pnlPresets != null)
+            {
+                int chipW = 0;
+                foreach (ModernButton chip in presetButtons)
+                {
+                    GrowToFit(chip);
+                    if (chip.Width > chipW) chipW = chip.Width;
+                }
+                int maxChipW = (pnlPresets.ClientSize.Width - 16) / 3;
+                if (chipW > maxChipW) chipW = maxChipW;
+                const int gapX = 8, gapY = 6, chipH = 26;
+                for (int i = 0; i < presetButtons.Count; i++)
+                {
+                    int col = i % 3, row = i / 3;
+                    presetButtons[i].SetBounds(col * (chipW + gapX), row * (chipH + gapY), chipW, chipH);
+                }
+            }
         }
 
         private RoundedCard CreateRoundedCard(int x, int y, int w, int h)
@@ -716,16 +912,40 @@ namespace ChatGPTAntiBanLauncher
             };
         }
 
-        private Label CreateCardTitle(string text, int x, int y)
+        private Panel CreateCardTitle(string iconGlyph, string text, int x, int y)
         {
-            return new Label
+            Panel pnl = new Panel
+            {
+                Location = new Point(x, y),
+                Size = new Size(460, 24),
+                BackColor = Color.Transparent
+            };
+
+            if (!string.IsNullOrEmpty(iconGlyph) && IconFonts.IsAvailable)
+            {
+                Label lblIcon = new Label
+                {
+                    Text = iconGlyph,
+                    Font = IconFonts.Get(11F),
+                    ForeColor = AccentBlue,
+                    Location = new Point(0, 0),
+                    Size = new Size(22, 24),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                pnl.Controls.Add(lblIcon);
+            }
+
+            Label lblText = new Label
             {
                 Text = text,
                 Font = new Font(this.Font.FontFamily, 9.5F, FontStyle.Bold),
                 ForeColor = TextPrimary,
-                Location = new Point(x, y),
-                AutoSize = true
+                Location = new Point(24, 0),
+                Size = new Size(436, 24),
+                TextAlign = ContentAlignment.MiddleLeft
             };
+            pnl.Controls.Add(lblText);
+            return pnl;
         }
 
         private void SwitchNetworkMode(string mode)
@@ -733,14 +953,18 @@ namespace ChatGPTAntiBanLauncher
             currentSettings.NetworkMode = mode;
             bool isVpn = (mode == "vpn");
 
-            btnModeVpn.BackColor = isVpn ? Color.FromArgb(236, 253, 245) : BgCard;
-            btnModeVpn.ForeColor = isVpn ? Color.FromArgb(5, 150, 105) : TextSecondary;
-            btnModeVpn.BorderColor = isVpn ? Color.FromArgb(167, 243, 208) : BorderCard;
+            btnModeVpn.BackColor = TC(isVpn ? Color.FromArgb(236, 253, 245) : BgCard);
+            btnModeVpn.ForeColor = TC(isVpn ? Color.FromArgb(5, 150, 105) : TextSecondary);
+            btnModeVpn.BorderColor = TC(isVpn ? Color.FromArgb(167, 243, 208) : BorderCard);
+            btnModeVpn.HoverColor = TC(isVpn ? Color.FromArgb(209, 250, 229) : Color.FromArgb(241, 245, 249));
+            btnModeVpn.DotColor = TC(Color.FromArgb(5, 150, 105));
             btnModeVpn.Font = new Font(this.Font.FontFamily, 9F, isVpn ? FontStyle.Bold : FontStyle.Regular);
 
-            btnModeDirect.BackColor = !isVpn ? Color.FromArgb(239, 246, 255) : BgCard;
-            btnModeDirect.ForeColor = !isVpn ? AccentBlue : TextSecondary;
-            btnModeDirect.BorderColor = !isVpn ? Color.FromArgb(191, 219, 254) : BorderCard;
+            btnModeDirect.BackColor = TC(!isVpn ? Color.FromArgb(239, 246, 255) : BgCard);
+            btnModeDirect.ForeColor = TC(!isVpn ? AccentBlue : TextSecondary);
+            btnModeDirect.BorderColor = TC(!isVpn ? Color.FromArgb(191, 219, 254) : BorderCard);
+            btnModeDirect.HoverColor = TC(!isVpn ? Color.FromArgb(219, 234, 254) : Color.FromArgb(241, 245, 249));
+            btnModeDirect.DotColor = TC(AccentBlue);
             btnModeDirect.Font = new Font(this.Font.FontFamily, 9F, !isVpn ? FontStyle.Bold : FontStyle.Regular);
 
             pnlProxySettings.Visible = isVpn;
@@ -754,10 +978,11 @@ namespace ChatGPTAntiBanLauncher
         {
             if (btnAutoPort == null) return;
             bool isAuto = currentSettings.AutoDetectProxy;
-            btnAutoPort.Text = isAuto ? "🟢 自动" : "⚡ 自动";
-            btnAutoPort.BackColor = isAuto ? Color.FromArgb(236, 253, 245) : Color.FromArgb(248, 250, 252);
-            btnAutoPort.ForeColor = isAuto ? Color.FromArgb(5, 150, 105) : TextSecondary;
-            btnAutoPort.BorderColor = isAuto ? Color.FromArgb(167, 243, 208) : BorderCard;
+            btnAutoPort.Text = "自动";
+            btnAutoPort.DotColor = TC(isAuto ? Color.FromArgb(5, 150, 105) : Color.FromArgb(148, 163, 184));
+            btnAutoPort.BackColor = TC(isAuto ? Color.FromArgb(236, 253, 245) : Color.FromArgb(248, 250, 252));
+            btnAutoPort.ForeColor = TC(isAuto ? Color.FromArgb(5, 150, 105) : TextSecondary);
+            btnAutoPort.BorderColor = TC(isAuto ? Color.FromArgb(167, 243, 208) : BorderCard);
             btnAutoPort.Invalidate();
         }
 
@@ -792,13 +1017,13 @@ namespace ChatGPTAntiBanLauncher
                                     isUpdatingPortInternally = false;
                                     UpdatePreview();
                                 }
-                                lblPortStatus.Text = string.Format("🟢 自动接入: 127.0.0.1:{0} 正在正常监听中", detectedPort);
-                                lblPortStatus.ForeColor = Color.FromArgb(5, 150, 105);
+                                lblPortStatus.Text = string.Format("自动接入：127.0.0.1:{0} 端口正常监听中", detectedPort);
+                                lblPortStatus.ForeColor = TC(Color.FromArgb(5, 150, 105));
                             }
                             else
                             {
-                                lblPortStatus.Text = "⚪ 自动探测中: 未检测到活跃的本地代理端口 (请确保代理软件已启动)";
-                                lblPortStatus.ForeColor = Color.FromArgb(234, 179, 8);
+                                lblPortStatus.Text = "自动探测中：未检测到活跃的本地代理端口（请确保代理软件已启动）";
+                                lblPortStatus.ForeColor = TC(Color.FromArgb(234, 179, 8));
                             }
                         }));
                     }
@@ -826,20 +1051,20 @@ namespace ChatGPTAntiBanLauncher
                         {
                             if (listening)
                             {
-                                lblPortStatus.Text = string.Format("🟢 127.0.0.1:{0} 正在正常监听中", curPort);
-                                lblPortStatus.ForeColor = Color.FromArgb(5, 150, 105);
+                                lblPortStatus.Text = string.Format("127.0.0.1:{0} 端口正常监听中", curPort);
+                                lblPortStatus.ForeColor = TC(Color.FromArgb(5, 150, 105));
                             }
                             else
                             {
                                 if (activeAltPort > 0)
                                 {
-                                    lblPortStatus.Text = string.Format("⚪ 127.0.0.1:{0} 未监听 (检测到端口 {1} 正在运行，可点击上方按钮切换)", curPort, activeAltPort);
+                                    lblPortStatus.Text = string.Format("127.0.0.1:{0} 未监听（检测到端口 {1} 正在运行，可点击上方按钮切换）", curPort, activeAltPort);
                                 }
                                 else
                                 {
-                                    lblPortStatus.Text = string.Format("⚪ 127.0.0.1:{0} 未检测到监听服务 (请确保代理软件已运行)", curPort);
+                                    lblPortStatus.Text = string.Format("127.0.0.1:{0} 未检测到监听服务（请确保代理软件已运行）", curPort);
                                 }
-                                lblPortStatus.ForeColor = Color.FromArgb(234, 179, 8);
+                                lblPortStatus.ForeColor = TC(Color.FromArgb(234, 179, 8));
                             }
                         }));
                     }
@@ -851,10 +1076,11 @@ namespace ChatGPTAntiBanLauncher
         {
             btnDetect.Enabled = false;
             btnDetect.Text = "探测中...";
+            if (detectSpinner != null) detectSpinner.Visible = true;
             lblDetectIp.Text = "出口 IP: 正在连接权威 HTTPS 接口...";
             lblDetectTz.Text = "节点时区: 正在获取...";
             lblDetectCompare.Text = "时区比对: 正在计算...";
-            lblDetectCompare.ForeColor = TextSecondary;
+            lblDetectCompare.ForeColor = TC(TextSecondary);
 
             bool isVpn = (currentSettings.NetworkMode == "vpn");
             ProxyConfig proxy = new ProxyConfig("127.0.0.1", currentSettings.ProxyPort);
@@ -869,7 +1095,8 @@ namespace ChatGPTAntiBanLauncher
                     this.BeginInvoke(new Action(delegate
                     {
                         btnDetect.Enabled = true;
-                        btnDetect.Text = "🔍 检测公网出口";
+                        btnDetect.Text = "检测公网出口";
+                        if (detectSpinner != null) detectSpinner.Visible = false;
 
                         if (result.GenerationToken != NetworkProbeService.CurrentGeneration)
                         {
@@ -896,7 +1123,7 @@ namespace ChatGPTAntiBanLauncher
                             lblDetectIp.Text = "出口 IP: 探测失败";
                             lblDetectTz.Text = "节点时区: --";
                             lblDetectCompare.Text = string.Format("探测失败 ({0}): {1}", result.ErrorKind, result.ErrorMessage);
-                            lblDetectCompare.ForeColor = Color.FromArgb(239, 68, 68);
+                            lblDetectCompare.ForeColor = TC(Color.FromArgb(239, 68, 68));
                         }
                     }));
                 }
@@ -908,14 +1135,14 @@ namespace ChatGPTAntiBanLauncher
             if (!hasDetectedTz || string.IsNullOrEmpty(lastDetectedIana))
             {
                 lblDetectCompare.Text = "时区比对: 未检测节点";
-                lblDetectCompare.ForeColor = TextSecondary;
+                lblDetectCompare.ForeColor = TC(TextSecondary);
                 return;
             }
 
             if (comboMode.SelectedIndex == 2) // Disabled
             {
                 lblDetectCompare.Text = "时区比对: 当前已选择【关闭时区伪装】，将按操作系统默认时区运行。";
-                lblDetectCompare.ForeColor = TextSecondary;
+                lblDetectCompare.ForeColor = TC(TextSecondary);
                 return;
             }
 
@@ -927,14 +1154,14 @@ namespace ChatGPTAntiBanLauncher
 
             if (isMatched)
             {
-                lblDetectCompare.Text = "时区比对: 🟢 配置时区与探测到的出口节点时区一致。";
-                lblDetectCompare.ForeColor = Color.FromArgb(5, 150, 105);
+                lblDetectCompare.Text = "时区比对: ✓ 配置时区与探测到的出口节点时区一致。";
+                lblDetectCompare.ForeColor = TC(Color.FromArgb(5, 150, 105));
             }
             else
             {
                 string targetDisplay = (mode == "iana") ? selectedIana : selectedUtc;
-                lblDetectCompare.Text = string.Format("时区比对: ⚠️ 时区配置不一致。\n探测节点: [{0}]\n当前配置: [{1}]", lastDetectedIana, targetDisplay);
-                lblDetectCompare.ForeColor = Color.FromArgb(220, 38, 38);
+                lblDetectCompare.Text = string.Format("时区比对: ✗ 时区配置不一致。\n探测节点: [{0}]\n当前配置: [{1}]", lastDetectedIana, targetDisplay);
+                lblDetectCompare.ForeColor = TC(Color.FromArgb(220, 38, 38));
             }
         }
 
@@ -1025,33 +1252,33 @@ namespace ChatGPTAntiBanLauncher
             if (tzRes.IsDisabled)
             {
                 lblPreviewTzBadge.Text = "(时区注入已关闭：目标进程将遵从系统原生时区)";
-                lblPreviewTzBadge.ForeColor = TextSecondary;
-                lblPreviewTzBadge.BackColor = Color.FromArgb(241, 245, 249);
+                lblPreviewTzBadge.ForeColor = TC(TextSecondary);
+                lblPreviewTzBadge.BackColor = TC(Color.FromArgb(241, 245, 249));
             }
             else if (!tzRes.Success)
             {
-                lblPreviewTzBadge.Text = string.Format("⚠️ 时区配置无效: {0}", tzRes.ErrorMessage);
-                lblPreviewTzBadge.ForeColor = Color.FromArgb(220, 38, 38);
-                lblPreviewTzBadge.BackColor = Color.FromArgb(254, 242, 242);
+                lblPreviewTzBadge.Text = string.Format("✗ 时区配置无效: {0}", tzRes.ErrorMessage);
+                lblPreviewTzBadge.ForeColor = TC(Color.FromArgb(220, 38, 38));
+                lblPreviewTzBadge.BackColor = TC(Color.FromArgb(254, 242, 242));
             }
             else
             {
                 lblPreviewTzBadge.Text = string.Format("TZ = {0} ({1})", tzRes.ResolvedTzValue, tzRes.DisplaySummary);
-                lblPreviewTzBadge.ForeColor = InfoBarText;
-                lblPreviewTzBadge.BackColor = InfoBarBg;
+                lblPreviewTzBadge.ForeColor = TC(InfoBarText);
+                lblPreviewTzBadge.BackColor = TC(InfoBarBg);
             }
 
             if (currentSettings.NetworkMode == "vpn")
             {
                 lblPreviewProxyBadge.Text = string.Format("HTTP_PROXY = http://127.0.0.1:{0} | ALL_PROXY = http://127.0.0.1:{0}", currentSettings.ProxyPort);
-                lblPreviewProxyBadge.ForeColor = Color.FromArgb(5, 150, 105);
-                lblPreviewProxyBadge.BackColor = Color.FromArgb(236, 253, 245);
+                lblPreviewProxyBadge.ForeColor = TC(Color.FromArgb(5, 150, 105));
+                lblPreviewProxyBadge.BackColor = TC(Color.FromArgb(236, 253, 245));
             }
             else
             {
                 lblPreviewProxyBadge.Text = "(直连模式：显式移除 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY)";
-                lblPreviewProxyBadge.ForeColor = AccentBlue;
-                lblPreviewProxyBadge.BackColor = Color.FromArgb(239, 246, 255);
+                lblPreviewProxyBadge.ForeColor = TC(AccentBlue);
+                lblPreviewProxyBadge.BackColor = TC(Color.FromArgb(239, 246, 255));
             }
         }
 
@@ -1177,6 +1404,7 @@ namespace ChatGPTAntiBanLauncher
             btnLaunch.Enabled = false;
             btnSave.Enabled = false;
             btnShortcut.Enabled = false;
+            if (busySpinner != null) busySpinner.Visible = true;
             SetStatus("正在执行启动前检查...", AccentBlue);
 
             ThreadPool.QueueUserWorkItem(delegate
@@ -1248,7 +1476,6 @@ namespace ChatGPTAntiBanLauncher
                             if (result.WarningLevel == LaunchWarningLevel.Warning || result.HasConflicts)
                             {
                                 string warnMsg = result.WarningMessage ?? result.Summary ?? string.Format("客户端已启动 (PID: {0})，检测到 {1} 项外部修改并已保留", result.TargetPid, result.ConflictCount);
-                                MessageBox.Show("客户端已成功启动，但环境恢复阶段检测到外部修改:\n\n" + warnMsg + "\n\n为避免破坏外部工具或系统配置，冲突变量已保留当前值未覆盖。", "启动与环境冲突提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 SetStatus("警告: " + warnMsg, Color.FromArgb(217, 119, 6));
                             }
                             else
@@ -1291,12 +1518,208 @@ namespace ChatGPTAntiBanLauncher
             btnLaunch.Enabled = true;
             btnSave.Enabled = true;
             btnShortcut.Enabled = true;
+            if (busySpinner != null) busySpinner.Visible = false;
         }
 
         private void SetStatus(string text, Color dotColor)
         {
+            Color c = TC(dotColor);
+            currentStatusColor = c;
+            pulseStep = 0;
             lblStatusText.Text = text;
-            lblStatusDot.ForeColor = dotColor;
+            lblStatusDot.ForeColor = c;
+            LogStatus(text, c);
+        }
+
+        // ============ Theme / Log / Activity helpers ============
+
+        private static Color TC(Color color)
+        {
+            return Theme.ToCurrent(color);
+        }
+
+        private bool ResolveStartupThemeIsDark()
+        {
+            string mode = (currentSettings != null ? currentSettings.ThemeMode : null) ?? "auto";
+            mode = mode.Trim().ToLowerInvariant();
+            if (mode == "dark") return true;
+            if (mode == "light") return false;
+            return Theme.DetectSystemDark();
+        }
+
+        private void ToggleTheme()
+        {
+            bool toDark = !Theme.IsDark;
+            currentSettings.ThemeMode = toDark ? "dark" : "light";
+            string err;
+            SettingsStore.Save(currentSettings, out err);
+            ApplyTheme(toDark);
+            LogStatus(toDark ? "已切换为深色主题" : "已切换为浅色主题", TC(Color.FromArgb(100, 116, 139)));
+        }
+
+        private void ApplyTheme(bool dark)
+        {
+            Theme.Apply(dark);
+
+            this.BackColor = Theme.Window;
+            RemapControlColors(this);
+
+            if (comboMode != null) { comboMode.BackColor = Theme.Card; comboMode.ForeColor = Theme.Text; comboMode.FlatStyle = FlatStyle.Flat; }
+            if (comboIana != null) { comboIana.BackColor = Theme.Card; comboIana.ForeColor = Theme.Text; comboIana.FlatStyle = FlatStyle.Flat; }
+            if (comboUtc != null) { comboUtc.BackColor = Theme.Card; comboUtc.ForeColor = Theme.Text; comboUtc.FlatStyle = FlatStyle.Flat; }
+            if (txtProxyPort != null) { txtProxyPort.BackColor = Theme.Card; txtProxyPort.ForeColor = Theme.Text; }
+            if (chkGracefulClose != null) { chkGracefulClose.ForeColor = Theme.Text; chkGracefulClose.BackColor = Color.Transparent; }
+
+            UpdateThemeToggleVisual();
+            SetDarkTitleBar(dark);
+
+            // Refresh state-dependent visuals with the new palette
+            if (btnModeVpn != null && btnModeDirect != null)
+            {
+                SwitchNetworkMode(currentSettings.NetworkMode ?? "vpn");
+            }
+            UpdateAutoPortButtonVisual();
+            UpdatePreview();
+
+            this.Invalidate(true);
+        }
+
+        private void RemapControlColors(Control root)
+        {
+            if (root == null) return;
+            int systemControlArgb = SystemColors.Control.ToArgb();
+
+            foreach (Control c in root.Controls)
+            {
+                ModernButton mb = c as ModernButton;
+                if (mb != null)
+                {
+                    mb.BackColor = Theme.ToCurrent(mb.BackColor);
+                    // Preserve white foreground on accent-filled buttons
+                    bool accentBg = mb.BackColor.ToArgb() == Theme.Accent.ToArgb();
+                    if (!(accentBg && mb.ForeColor.ToArgb() == Color.White.ToArgb()))
+                    {
+                        mb.ForeColor = Theme.ToCurrent(mb.ForeColor);
+                    }
+                    mb.BorderColor = Theme.ToCurrent(mb.BorderColor);
+                    mb.HoverColor = Theme.ToCurrent(mb.HoverColor);
+                    mb.PressedColor = Theme.ToCurrent(mb.PressedColor);
+                    if (mb.DotColor != Color.Empty && mb.DotColor != Color.Transparent)
+                    {
+                        mb.DotColor = Theme.ToCurrent(mb.DotColor);
+                    }
+                }
+                else
+                {
+                    Label lbl = c as Label;
+                    if (lbl != null)
+                    {
+                        // Labels default to a system gray block background; make them transparent
+                        if (lbl.BackColor == Color.Transparent || lbl.BackColor.ToArgb() == systemControlArgb)
+                        {
+                            lbl.BackColor = Color.Transparent;
+                        }
+                        else
+                        {
+                            lbl.BackColor = Theme.ToCurrent(lbl.BackColor);
+                        }
+                    }
+                    else
+                    {
+                        c.BackColor = Theme.ToCurrent(c.BackColor);
+                    }
+                    c.ForeColor = Theme.ToCurrent(c.ForeColor);
+                }
+
+                if (c.HasChildren)
+                {
+                    RemapControlColors(c);
+                }
+            }
+        }
+
+        private void UpdateThemeToggleVisual()
+        {
+            if (btnThemeToggle == null) return;
+            bool useGlyph = IconFonts.IsAvailable;
+            btnThemeToggle.IconChar = useGlyph ? (Theme.IsDark ? "\uE706" : "\uE9C2") : null;
+            btnThemeToggle.Text = useGlyph ? "" : (Theme.IsDark ? "☀" : "🌙");
+            btnThemeToggle.ForeColor = TC(TextSecondary);
+        }
+
+        private void SetDarkTitleBar(bool dark)
+        {
+            if (!this.IsHandleCreated) return;
+            try
+            {
+                int val = dark ? 1 : 0;
+                // DWMWA_USE_IMMERSIVE_DARK_MODE (supported on Win10 20H1+ / Win11)
+                DwmSetWindowAttribute(this.Handle, 20, ref val, sizeof(int));
+            }
+            catch { }
+        }
+
+        private void ToggleLogPanel()
+        {
+            logExpanded = !logExpanded;
+            pnlLog.Visible = logExpanded;
+            pnlBottom.Height = logExpanded ? BottomBarExpandedHeight : BottomBarCollapsedHeight;
+            btnLogToggle.Text = logExpanded ? "运行日志 ▾" : "运行日志 ▸";
+        }
+
+        private void LogStatus(string text, Color color)
+        {
+            if (logRowLabels == null) return;
+            for (int i = logRowLabels.Length - 1; i > 0; i--)
+            {
+                logTexts[i] = logTexts[i - 1];
+                logColors[i] = logColors[i - 1];
+            }
+            logTexts[0] = string.Format("{0:HH:mm:ss}  {1}", DateTime.Now, text);
+            logColors[0] = color;
+
+            for (int i = 0; i < logRowLabels.Length; i++)
+            {
+                Label row = logRowLabels[i];
+                if (row == null) continue;
+                row.Text = logTexts[i] ?? "";
+                if (string.IsNullOrEmpty(logTexts[i]))
+                {
+                    row.ForeColor = TC(Color.FromArgb(100, 116, 139));
+                }
+                else
+                {
+                    row.ForeColor = (i == 0) ? logColors[i] : BlendColor(logColors[i], Theme.TextDim, 0.45f);
+                }
+            }
+        }
+
+        private void StartPulseTimer()
+        {
+            pulseTimer = new System.Windows.Forms.Timer();
+            pulseTimer.Interval = 900;
+            pulseTimer.Tick += (s, e) =>
+            {
+                try
+                {
+                    if (lblStatusDot == null || lblStatusDot.IsDisposed) return;
+                    pulseStep = (pulseStep + 1) % 4;
+                    float blend = (pulseStep == 1 || pulseStep == 3) ? 0.20f : (pulseStep == 2 ? 0.38f : 0f);
+                    lblStatusDot.ForeColor = BlendColor(currentStatusColor, Theme.Window, blend);
+                }
+                catch { }
+            };
+            pulseTimer.Start();
+        }
+
+        private static Color BlendColor(Color from, Color to, float ratio)
+        {
+            if (ratio <= 0f) return from;
+            if (ratio >= 1f) return to;
+            int r = (int)(from.R + (to.R - from.R) * ratio);
+            int g = (int)(from.G + (to.G - from.G) * ratio);
+            int b = (int)(from.B + (to.B - from.B) * ratio);
+            return Color.FromArgb(r, g, b);
         }
 
         [DllImport("kernel32.dll")]
